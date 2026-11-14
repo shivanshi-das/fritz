@@ -1,0 +1,2021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fritz</title>
+<meta name="theme-color" content="#efeae0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12110f" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #efeae0; --fg: #1c1a16; --muted: #575146; --line: #d6cfc1;
+    --panel: #e3dccd; --panel-edge: #c7bdaa; --raised: #f8f5ee;
+    --accent: #c4361f; --ok: #3f7a2e; --amber: #f0a417; --focus: var(--fg);
+    --btn: #1c1a16; --btn-fg: #f8f5ee;
+    /* the screen: amber phosphor, with the same red and green lamps, brightened to glow */
+    --lcd-bg: #15120b; --lcd-edge: #0a0805; --lcd-fg: #ffb21e; --lcd-dim: #8a6a26; --lcd-red: #ff5a3c; --lcd-ok: #a8e27a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #12110f; --fg: #ece6da; --muted: #aaa396; --line: #2b2824;
+      --panel: #1c1a16; --panel-edge: #322e28; --raised: #24211c;
+      --accent: #ff5a3c; --ok: #8fd46e; --amber: #ffb21e; --focus: var(--fg);
+      --btn: #ece6da; --btn-fg: #12110f;
+      --lcd-bg: #0b0a06; --lcd-edge: #000;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12110f; --fg: #ece6da; --muted: #aaa396; --line: #2b2824;
+    --panel: #1c1a16; --panel-edge: #322e28; --raised: #24211c;
+    --accent: #ff5a3c; --ok: #8fd46e; --amber: #ffb21e; --focus: var(--fg);
+    --btn: #ece6da; --btn-fg: #12110f;
+    --lcd-bg: #0b0a06; --lcd-edge: #000;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font: 16px/1.5 var(--sans); -webkit-text-size-adjust: 100%; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 0 16px 56px; }
+  /* --z is set from the viewport in JS: same vertical layout, scaled to the display */
+  .wrap, dialog#modal, .toast { zoom: var(--z, 1); }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .mono, code { font-family: var(--mono); }
+
+  /* header */
+  .top { display: flex; align-items: center; justify-content: space-between; height: 56px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--line); }
+  .wordmark { background: none; border: 0; padding: 0; min-height: 44px; font-weight: 800; font-size: 22px;
+    letter-spacing: -0.03em; cursor: pointer; }
+  .wordmark span { display: inline-block; }
+  .wordmark span:nth-child(2) { transform: translateY(2px) rotate(-8deg); color: var(--accent); }
+
+  /* type */
+  .label { margin: 0 0 8px; font: 600 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .kicker .hm { margin-left: 8px; padding: 2px 6px; border-radius: 0; background: var(--accent); color: #fff; font-weight: 600; }
+  .kicker { margin: 0 0 6px; font: 500 12px/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 0; font-size: 28px; line-height: 1.1; letter-spacing: -0.025em; font-weight: 750; }
+  .title-row { display: flex; align-items: center; gap: 10px; }
+  .title-row svg { flex: none; width: 26px; height: 26px; color: var(--muted); }
+  .lede { margin: 8px 0 0; font-size: 17px; color: var(--fg); }
+  .sub { margin: 6px 0 0; color: var(--muted); }
+  section.block { margin-top: 24px; }
+  svg.i { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* tables (examples, log) */
+  .tbl { width: 100%; border-collapse: collapse; font: 15px/1.35 var(--mono); }
+  .tbl td { padding: 9px 0; border-top: 1px solid var(--line); vertical-align: baseline; word-break: break-all; }
+  .tbl tr:last-child td { border-bottom: 1px solid var(--line); }
+  .tbl .n { width: 26px; color: var(--muted); font-size: 12px; }
+  .tbl .arrow { width: 28px; color: var(--muted); text-align: center; }
+  .tbl .o { text-align: right; padding-right: 12px; }
+  .tbl .m { width: 14px; text-align: right; }
+  .tbl tr.hit .o { color: var(--accent); font-weight: 700; }
+  .tbl .tagok { font-size: 11px; letter-spacing: .08em; color: var(--ok); white-space: nowrap; }
+  .tbl td.m:has(.tagok) { width: 24px; }
+
+  /* markers: drawn, not emoji */
+  .mk { display: inline-block; width: 12px; height: 12px; border-radius: 0; vertical-align: -1px; }
+  .mk.pass { box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .mk.hit { background: var(--accent); }
+  .mark { width: 22px; height: 22px; border-radius: 0; display: inline-grid; place-items: center; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .mark svg { width: 14px; height: 14px; stroke: #fff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .mark.cur { box-shadow: inset 0 0 0 1.5px var(--fg); }
+  .mark.yes { background: var(--ok); box-shadow: none; }
+  .mark.no { background: var(--accent); box-shadow: none; }
+
+  /* the device: LCD + controls in one housing */
+  .device { margin-top: 20px; padding: 12px; border-radius: 0; background: var(--panel);
+    box-shadow: inset 0 0 0 1px var(--panel-edge), 0 1px 0 rgba(255,255,255,.5) inset; }
+  .lcd { position: relative; overflow: hidden; min-height: 156px; border-radius: 0; padding: 14px 16px;
+    background: var(--lcd-bg); color: var(--lcd-fg); font-family: var(--mono);
+    box-shadow: inset 0 0 0 2px var(--lcd-edge), inset 0 0 36px rgba(0,0,0,.75);
+    display: flex; flex-direction: column; justify-content: center; }
+  .lcd::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,.28) 0 1px, transparent 1px 3px); }
+  .lcd .glow { text-shadow: 0 0 8px currentColor; }
+  .lcd .line { font-size: 13px; color: var(--lcd-dim); white-space: pre-wrap; word-break: break-all; }
+  .lcd .big { font-size: 52px; line-height: 1.05; font-weight: 600; margin: 4px 0; word-break: break-all; }
+  .lcd .big.m { font-size: 36px; } .lcd .big.s { font-size: 26px; } .lcd .big.xs { font-size: 19px; }
+  .lcd .tag { position: absolute; top: 10px; right: 14px; font-size: 11px; letter-spacing: .12em; color: var(--lcd-dim); }
+  .lcd .cursor { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .lcd .pair { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: baseline; margin-top: 6px; }
+  .lcd .pair .k { font-size: 11px; letter-spacing: .12em; color: var(--lcd-dim); }
+  .lcd .pair .v { font-size: 26px; font-weight: 600; word-break: break-all; }
+  .lcd .alarm { color: var(--lcd-red); font-weight: 700; letter-spacing: .16em; font-size: 14px; }
+  .lcd .bad { color: var(--lcd-red); }
+  .lcd .verdict { font-size: 12px; letter-spacing: .12em; margin-top: 2px; }
+  .lcd .verdict.yes { color: var(--lcd-ok); } .lcd .verdict.no { color: var(--lcd-red); }
+  .lcd.glitched { box-shadow: inset 0 0 0 2px var(--lcd-red), inset 0 0 36px rgba(0,0,0,.75); }
+  .lcd.dead { color: var(--lcd-dim); }
+
+  .lcd.glitching { animation: jitter 400ms steps(8) both; }
+  .lcd.glitching > * { animation: rgbsplit 400ms steps(8) both; }
+  .lcd.glitching::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(transparent 0 30%, rgba(255,90,60,.35) 30% 36%, transparent 36% 62%,
+      rgba(168,226,122,.22) 62% 66%, transparent 66%);
+    animation: bands 400ms steps(5) both; }
+  @keyframes jitter {
+    0% { transform: translate(0,0); } 12% { transform: translate(-6px,2px) skewX(-4deg); }
+    25% { transform: translate(5px,-3px); } 37% { transform: translate(-3px,0) skewX(6deg); }
+    50% { transform: translate(7px,2px); } 62% { transform: translate(-5px,-2px); }
+    75% { transform: translate(2px,3px) skewX(-3deg); } 87% { transform: translate(-2px,-1px); }
+    100% { transform: none; } }
+  @keyframes rgbsplit {
+    0%, 100% { text-shadow: none; clip-path: none; }
+    15% { text-shadow: -4px 0 var(--lcd-red), 4px 0 var(--lcd-ok); clip-path: inset(10% 0 40% 0); }
+    35% { text-shadow: 5px 0 var(--lcd-red), -5px 0 var(--lcd-ok); clip-path: inset(50% 0 5% 0); }
+    55% { text-shadow: -3px 0 var(--lcd-red), 3px 0 var(--lcd-ok); clip-path: none; }
+    75% { text-shadow: 2px 0 var(--lcd-red), -2px 0 var(--lcd-ok); clip-path: inset(0 0 60% 0); } }
+  @keyframes bands { 0% { transform: translateY(-40%); } 100% { transform: translateY(60%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .lcd.glitching, .lcd.glitching > *, .lcd.glitching::before, .lcd .cursor { animation: none; }
+  }
+
+  /* controls inside the device */
+  .controls { margin-top: 12px; }
+  .fields { display: flex; gap: 8px; align-items: flex-end; }
+  .field { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field .label { margin: 0 0 0 2px; }
+  .field input { width: 100%; height: 48px; padding: 0 12px; font: 18px var(--mono);
+    background: var(--raised); border: 1px solid var(--panel-edge); border-radius: 0; }
+  .field input:focus { border-color: var(--fg); outline: none; }
+  .field input[aria-invalid="true"] { border-color: var(--accent); }
+  .field.people { flex: 0 0 76px; }
+  .prefix { position: relative; display: block; }
+  .prefix::before { content: "$"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font: 18px var(--mono); color: var(--muted); }
+  .prefix input { padding-left: 28px; }
+  .btn { height: 48px; padding: 0 20px; border-radius: 0; border: 0; background: var(--btn); color: var(--btn-fg);
+    font-weight: 650; font-size: 16px; cursor: pointer; flex: none; }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn.wide { width: 100%; margin-top: 16px; }
+  .msg { margin: 8px 2px 0; font-size: 14px; }
+  .msg:empty { display: none; }
+  .msg.err { color: var(--accent); }
+  .seen { color: var(--muted); font-family: var(--mono); white-space: pre-wrap; word-break: break-all; }
+  .meter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 2px 2px;
+    font: 12px var(--mono); color: var(--muted); letter-spacing: .04em; }
+  .pips { display: flex; gap: 4px; }
+  .pip { width: 8px; height: 8px; border-radius: 0; box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .pip.used { background: var(--muted); }
+  .pip.hit { background: var(--accent); box-shadow: none; }
+
+  /* predict */
+  .progress { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .progress .count { margin-left: auto; font: 12px var(--mono); color: var(--muted); letter-spacing: .04em; }
+  .options { display: grid; gap: 8px; margin-top: 12px; }
+  .opt { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; text-align: left;
+    background: var(--raised); border: 1px solid var(--panel-edge); border-radius: 0; cursor: pointer; }
+  .opt:hover:not(:disabled) { border-color: var(--fg); }
+  .opt .key { flex: none; font: 12px var(--mono); color: var(--muted); width: 14px; }
+  .opt .val { flex: 1; font: 19px var(--mono); word-break: break-all; }
+  .opt .res { flex: none; width: 22px; height: 22px; }
+  .opt:disabled { cursor: default; }
+  .opt.right { border-color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+  .opt.wrong { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .opt.dim { opacity: .45; }
+  .ref { margin-top: 28px; }
+  .ref summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+  .ref summary .label { margin: 0; }
+  .ref summary::-webkit-details-marker { display: none; }
+  .ref summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+    transform: rotate(-45deg); transition: transform .15s; }
+  .ref[open] summary::before { transform: rotate(45deg); }
+
+  /* results */
+  .rank { font-size: 40px; letter-spacing: -0.035em; }
+  .rank.lost { color: var(--accent); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 20px 0 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .stats div { padding: 12px 0; }
+  .stats div + div { padding-left: 14px; border-left: 1px solid var(--line); }
+  .stats b { display: block; font: 600 26px/1.1 var(--mono); }
+  .stats span { font-size: 13px; color: var(--muted); }
+  .tape { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .tape .mk { width: 16px; height: 16px; }
+  .tape .gap { width: 14px; }
+  .tape .mark { width: 16px; height: 16px; border-radius: 0; }
+  .tape .mark svg { width: 11px; height: 11px; }
+  .share-row { margin-top: 20px; padding: 14px; border-radius: 0; background: var(--panel); box-shadow: inset 0 0 0 1px var(--panel-edge); }
+  .share-row .btn { margin-top: 12px; width: 100%; }
+  .share-row pre { position: absolute; left: -9999px; }
+  .prose p { margin: 0; }
+  .prose + .prose { margin-top: 18px; }
+  .next-in { display: flex; justify-content: space-between; align-items: baseline; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .next-in .label { margin: 0; }
+  .next-in .mono { font-size: 18px; font-weight: 600; }
+  .link { background: none; border: 0; padding: 0; min-height: 44px; color: var(--fg); font-weight: 650; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px);
+    background: var(--btn); color: var(--btn-fg); padding: 10px 16px; border-radius: 0; font-size: 15px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10;
+    max-width: calc(100% - 32px); width: max-content; text-align: center; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* header buttons */
+  .top-actions { display: flex; gap: 2px; margin-right: -10px; }
+  .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 0;
+    color: var(--fg); cursor: pointer; }
+  .icon-btn:hover { background: var(--panel); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* streak + milestone */
+  .streak-row { display: flex; align-items: center; gap: 20px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .streak-row .label { margin: 0; display: inline; }
+  .streak-row b { font-size: 17px; margin-left: 4px; }
+  .streak-row .link { margin-left: auto; }
+  .milestone { position: relative; display: inline-flex; align-items: baseline; gap: 8px; margin-bottom: 14px;
+    padding: 8px 14px; border-radius: 0; background: var(--accent); color: #fff; animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+  .milestone b { font: 700 22px/1 var(--mono); }
+  .milestone span { font-weight: 600; }
+  .burst { position: absolute; inset: 0; pointer-events: none; }
+  .burst i { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; background: var(--accent); border-radius: 0;
+    opacity: 0; animation: spark .7s .15s ease-out both; }
+  .burst i:nth-child(1) { --x: -70px; --y: -26px; } .burst i:nth-child(2) { --x: 70px; --y: -24px; }
+  .burst i:nth-child(3) { --x: -82px; --y: 8px; }   .burst i:nth-child(4) { --x: 84px; --y: 10px; }
+  .burst i:nth-child(5) { --x: -40px; --y: 34px; }  .burst i:nth-child(6) { --x: 44px; --y: 32px; }
+  .burst i:nth-child(7) { --x: -10px; --y: -40px; } .burst i:nth-child(8) { --x: 16px; --y: 42px; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes spark { 0% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(90deg); } }
+  @media (prefers-reduced-motion: reduce) { .milestone, .burst i { animation: none; } }
+
+  /* modal */
+  dialog#modal { width: min(440px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 0; border-radius: 0;
+    background: var(--bg); color: var(--fg); box-shadow: 0 0 0 1px var(--line), 0 20px 60px rgba(0,0,0,.35); }
+  dialog#modal::backdrop { background: rgba(10,9,8,.45); }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 0 18px; }
+  .modal-head .label { margin: 0; }
+  .modal-body { padding: 4px 18px 20px; }
+  .modal-body > .label { margin-top: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .kpis div { padding: 10px 0 10px 10px; } .kpis div:first-child { padding-left: 0; }
+  .kpis div + div { border-left: 1px solid var(--line); }
+  .kpis b { display: block; font: 600 24px/1.1 var(--mono); }
+  .kpis span { font-size: 12px; color: var(--muted); line-height: 1.2; display: block; margin-top: 2px; }
+  .histo { display: grid; gap: 5px; }
+  .hrow { display: grid; grid-template-columns: 16px 1fr 28px; gap: 10px; align-items: center; font: 13px var(--mono); }
+  .hk { color: var(--muted); text-align: center; }
+  .htrack { height: 18px; }
+  .hbar { display: block; height: 100%; background: var(--muted); border-radius: 0; opacity: .55; }
+  .hrow.cur .hbar { background: var(--fg); opacity: 1; }
+  .hrow.loss.cur .hbar { background: var(--accent); }
+  .hv { text-align: right; }
+  .avg { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+  .avg .label { margin: 0 auto 0 0; }
+  .avg b { font-size: 18px; }
+  .setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .setting > span { display: flex; flex-direction: column; }
+  .setting .sub { margin: 2px 0 0; font-size: 14px; }
+  .note { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+  .switch { appearance: none; flex: none; width: 46px; height: 28px; border-radius: 0; margin: 0; position: relative; cursor: pointer;
+    background: var(--panel-edge); transition: background .15s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 0;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+  .switch:checked { background: var(--accent); }
+  .switch:checked::after { transform: translateX(18px); }
+
+  /* tutorial + help */
+  .tut-bar { display: flex; align-items: center; justify-content: space-between; margin-top: -10px; }
+  .tut-bar .kicker { margin: 0; }
+  .coach { margin: 16px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--panel); border-radius: 0; font-size: 15px; }
+  .tut-intro { padding-top: 8px; }
+  .tut-intro h1 { margin-top: 28px; font-size: 32px; }
+  .btn-note { margin-left: 6px; font-weight: 500; opacity: .6; font-size: 14px; }
+  .wide-link { display: block; width: 100%; margin-top: 4px; text-align: center; color: var(--muted); }
+  .def { padding: 14px 16px; border-radius: 0; background: var(--panel); box-shadow: inset 0 0 0 1px var(--panel-edge); }
+  .def p { margin: 0; font-size: 15px; }
+  .def .def-head { margin-bottom: 4px; font-size: 20px; }
+  .def .def-head .mono { font-size: 14px; color: var(--muted); }
+  .rules { counter-reset: r; list-style: none; margin: 20px 0 0; padding: 0; }
+  .rules li { counter-increment: r; display: grid; grid-template-columns: 28px 1fr; padding: 10px 0; border-top: 1px solid var(--line); }
+  .rules li:last-child { border-bottom: 1px solid var(--line); }
+  .rules li::before { content: counter(r); font: 600 13px/1.6 var(--mono); color: var(--accent); }
+  .today { margin-top: 24px; }
+  .today h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+  .today .kicker { margin-top: 4px; }
+  .ranks { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 12px 0 0; font-size: 15px; }
+  .ranks dt { font-weight: 650; }
+  .ranks dd { margin: 0; color: var(--muted); }
+  .legend-list dt { width: 16px; text-align: center; }
+  .modal-body .btn.wide { margin-top: 22px; }
+  .modal-body .def { margin-top: 8px; }
+  .legend { font: 11px var(--mono); letter-spacing: .06em; color: var(--muted); margin-left: 6px; }
+
+  /* settings + dev */
+  .seg { display: inline-flex; padding: 3px; border-radius: 0; background: var(--panel); box-shadow: inset 0 0 0 1px var(--panel-edge); }
+  .seg button { min-height: 38px; padding: 0 12px; border: 0; border-radius: 0; background: none; font-size: 14px; cursor: pointer; color: var(--muted); }
+  .seg button[aria-checked="true"] { background: var(--raised); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+  .dev-btn { width: auto; padding: 0 8px; font: 600 11px var(--mono); letter-spacing: .08em; color: var(--accent); }
+  .dev-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .dev-btns .btn { flex: 1; padding: 0 8px; font-size: 13px; height: 44px; white-space: nowrap; }
+  .select { min-height: 44px; padding: 0 8px; border-radius: 0; border: 1px solid var(--panel-edge); background: var(--raised); font: 14px var(--sans); max-width: 55%; }
+  #devOut { margin-top: 16px; }
+  .dev-tbl td { font-size: 13px; }
+  .dev-tbl .ok { color: var(--ok); text-align: right; font-weight: 700; } .dev-tbl .bad { color: var(--accent); text-align: right; font-weight: 700; }
+  .dev-tbl .small { font-size: 12px; text-align: left; font-weight: 400; }
+
+  /* ===== Type system =====
+     Technotot (pixel, 10-unit grid: crisp at 10/20/30/40px) = the game's voice: wordmark, headlines, buttons, labels.
+     Monospace = anything the machine reads or prints, where every character and capital must be exact.
+     Sans = sentences of instruction. */
+  @font-face { font-family: "Technotot"; font-display: block;
+    src: url(data:font/otf;base64,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ESERDMwDNPzM/M38zfzNCZn8zfmaBmb5mgZm+ZoAAAAAAQAAAAAJmQmZAAgAADERIQERIREhEQZmAzP8zfzNCZn8zfmaBmb5mgAAAAACAAAAAAmZCZkAAwAJAAABESERAREBIREBBmb8zfzNAzMGZvzNAzMDM/zN/M0GZgMz+Zr8zQAAAAIAAPzNCZkJmQADAAoAAAERIREBESEBESERBmb8zfzNBmYDM/maAzMDM/zN+ZoMzPzN+Zr8zQAAAgAA/M0JmQmZAAMACgAAAREhEQERIREBIREGZvzNAzP5mgMzBmYDMwMz/M35mgMzBmYDM/M0AAABAAAAAAZmCZkABQAAMREhESERBmb8zQmZ/M35mgAAAAEAAAAACZkJmQAHAAAxESERIREhEQMzBmb8zQMzBmb8zfmaAAEAAAAABmYMzAAKAAAhAREhESERIREhEQMz/M0DMwMz/M0DMwMzCZn8zfzN/M38zQAAAAABAAAAAAmZCZkACAAAIQERIREhESERAzP8zQMzAzMDMwMzBmb5mgZm9mcAAAEAAAAACZkJmQAJAAAhAREhESERIREBAzP8zQMzAzMDM/zNAzMGZvmaBmb5mvzNAAEAAAAAEAAJmQAMAAAhAREhESERIREhESERAzP8zQMzAzMDMwMzAzQDMwZm+ZoGZvmaBmb2ZwAAAwAAAAAJmQmZAAMADQARAAAxESERIREhAREhESEBEQERIREDMwMz/M38zQMzAzMDM/zNAzMDM/zNAzMDMwMz/M38zfzNBmYDM/zNAAEAAPzNCZkJmQAKAAABESEBESERIREhEQZm/M38zQMzAzMDM/zNAzMDMwZm+ZoGZvM0AAABAAAAAAmZCZkABwAAIREhESERIREDM/zNBmYDMwZmAzP5mvzNAAAAAAABAAAAGgABAAIADAABAAAAOwA8/McAXQBe/McAAAAAABQA9gABAAAAAAAAABwAAAABAAAAAAABAAkAIwABAAAAAAACAAcAHAABAAAAAAADABYAIwABAAAAAAAEAAkAIwABAAAAAAAFAC8AOQABAAAAAAAGAAkAIwABAAAAAAAIACIAaAABAAAAAAAJAA0ACgABAAAAAAATACkAigADAAEECQAAADgAswADAAEECQABABIA+QADAAEECQACAA4A6wADAAEECQADACwA+QADAAEECQAEABIA+QADAAEECQAFAF4BJQADAAEECQAGABIA+QADAAEECQAIAEQBgwADAAEECQAJABoAxwADAAEECQATAFIBx0NvcHlyaWdodCBEYXJyZWxsIEZsb29kIDIwMTdSZWd1bGFyVGVjaG5vdG90OlZlcnNpb24gMS4wMFZlcnNpb24gMS4wMCBTZXB0ZW1iZXIgMiwgMjAxNywgaW5pdGlhbCByZWxlYXNlSGlnaC1Mb2dpYyAvIE1hZGUgd2l0aCBGb250Q3JlYXRvckZpdmUgYmlnIHF1YWNraW5nIHplcGh5cnMgam9sdCBteSB3YXggYmVkAEMAbwBwAHkAcgBpAGcAaAB0ACAARABhAHIAcgBlAGwAbAAgAEYAbABvAG8AZAAgADIAMAAxADcAUgBlAGcAdQBsAGEAcgBUAGUAYwBoAG4AbwB0AG8AdAA6AFYAZQByAHMAaQBvAG4AIAAxAC4AMAAwAFYAZQByAHMAaQBvAG4AIAAxAC4AMAAwACAAUwBlAHAAdABlAG0AYgBlAHIAIAAyACwAIAAyADAAMQA3ACwAIABpAG4AaQB0AGkAYQBsACAAcgBlAGwAZQBhAHMAZQBIAGkAZwBoAC0ATABvAGcAaQBjACAALwAgAE0AYQBkAGUAIAB3AGkAdABoACAARgBvAG4AdABDAHIAZQBhAHQAbwByAEYAaQB2AGUAIABiAGkAZwAgAHEAdQBhAGMAawBpAG4AZwAgAHoAZQBwAGgAeQByAHMAIABqAG8AbAB0ACAAbQB5ACAAdwBhAHgAIABiAGUAZAAAAgAAAAAAAAGZAMwAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAABAgEDAAMABAAFAAYABwAIAAkACgALAAwADQAOAA8AEAARABIAEwAUABUAFgAXABgAGQAaABsAHAAdAB4AHwAgACEAIgAjAD4APwBAAEEAQgBDAEQARQBGAEcASABJAEoASwBMAE0ATgBPAFAAUQBSAFMAVABVAFYAVwBYAFkAWgBbAFwAXQBeAF8AYABhALYAtwC0ALUAJAAlACYAJwAoACkAKgArACwALQAuAC8AMAAxADIAMwA0ADUANgA3ADgAOQA6ADsAPAA9Al8xAl8yAAAAAQAAAAAAAQAAAAAAAAAAAAAAAQAAAAoAHgAsAAFsYXRuAAgABAAAAAD//wABAAAAAWtlcm4ACAAAAAEAAAABAAQAAgAAAAEACAABABoABAAAAAIADgAUAAEAPPzHAAEAXvzHAAEAAgA7AF0AAAABAAAACgAcAB4AAWxhdG4ACAAEAAAAAP//AAAAAAAA) format("opentype"); }
+  :root { --pixel: "Technotot", var(--mono); --hard: #b4a993; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hard: #000; } }
+  :root[data-theme="dark"] { --hard: #000; }
+
+  .wordmark { font: 400 30px/1 var(--pixel); letter-spacing: 0; }
+  h1, .today h2 { font-family: var(--pixel); font-weight: 400; letter-spacing: 0; line-height: 1.05; }
+  h1 { font-size: 30px; }
+  .today h2 { font-size: 20px; }
+  .rank { font-size: 40px; }
+  .tut-intro h1 { font-size: 30px; }
+  .label, .kicker, .meter, .progress .count, .opt .key, .tbl .tagok, .legend, .stats span, .kpis span {
+    font-family: var(--pixel); font-weight: 400; font-size: 10px; letter-spacing: .1em; text-transform: lowercase; }
+  .kicker .hm { font-size: 10px; padding: 3px 6px 2px; }
+  .btn, .seg button, .link, .dev-btn { font-family: var(--pixel); font-weight: 400; text-transform: lowercase; letter-spacing: .04em; }
+  .btn { font-size: 20px; }
+  .link { font-size: 20px; text-decoration-thickness: 2px; }
+  .seg button { font-size: 10px; letter-spacing: .1em; }
+  .stats b, .kpis b, .streak-row b, .next-in .mono, .milestone b, .avg b { font-family: var(--pixel); font-weight: 400; }
+  .stats b, .kpis b { font-size: 30px; }
+  .streak-row b, .avg b, .next-in .mono { font-size: 20px; }
+  .milestone span { font: 400 20px var(--pixel); text-transform: lowercase; }
+  /* LCD chrome speaks pixel; LCD data stays monospace */
+  .lcd .tag, .lcd .alarm, .lcd .verdict, .lcd .pair .k { font-family: var(--pixel); font-weight: 400; font-size: 10px; letter-spacing: .14em; }
+  .lcd .alarm { font-size: 20px; letter-spacing: .06em; }
+  .lcd.dead .big { font-family: var(--pixel); font-weight: 400; font-size: 30px; text-transform: lowercase; }
+
+  /* ===== Keycaps: square, 2px edges, a hard offset shadow that presses flat ===== */
+  .btn { height: 52px; border: 2px solid var(--btn); box-shadow: 4px 4px 0 var(--hard); transition: transform 60ms, box-shadow 60ms; }
+  .btn:active:not(:disabled) { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--hard); }
+  .btn:disabled { box-shadow: none; }
+  .opt { border-width: 2px; box-shadow: 3px 3px 0 var(--hard); transition: transform 60ms, box-shadow 60ms; }
+  .opt:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+  .opt:disabled { box-shadow: none; }
+  .field input, .select { border-width: 2px; }
+  .device { box-shadow: inset 0 0 0 2px var(--panel-edge), 6px 6px 0 var(--hard); }
+  .share-row, .def, .seg { box-shadow: inset 0 0 0 2px var(--panel-edge); }
+  .coach { border-left-width: 4px; }
+  dialog#modal { box-shadow: 0 0 0 2px var(--fg), 8px 8px 0 var(--hard); }
+  .toast { box-shadow: 4px 4px 0 var(--hard); }
+  .switch::after { box-shadow: none; }
+  .milestone { box-shadow: 4px 4px 0 var(--hard); }
+  .icon-btn:hover { background: var(--panel); }
+  .def .def-head b { font: 400 20px var(--pixel); }
+
+  /* ===== Color system =====
+     ink + paper + housing; three lamps with fixed meanings:
+     red = fault (glitch, wrong, error) · green = pass (worked, correct) · amber = the machine's glow (screen, guidance, milestones) */
+  ::selection { background: color-mix(in srgb, var(--amber) 35%, transparent); }
+  .mark svg { stroke: var(--raised); }
+  .kicker .hm { background: var(--fg); color: var(--bg); }
+  .coach { border-left-color: var(--amber); }
+  .milestone { background: var(--amber); color: #1c1a16; }
+  .burst i { background: var(--amber); }
+  .switch:checked { background: var(--fg); }
+  .switch::after { background: var(--raised); }
+  .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); box-shadow: none; }
+  .dev-btn { color: var(--muted); }
+  .tbl .tagok { color: var(--ok); }
+  .pip.used { background: var(--muted); }
+  .hrow.cur .hbar { background: var(--fg); }
+  .hrow.loss.cur .hbar { background: var(--accent); }
+  dialog#modal::backdrop { background: color-mix(in srgb, #12110f 50%, transparent); }
+
+  /* ===== Small type: Technicality (rebuilt so browsers accept it and made proportional so narrow letters
+     don't float in a full-width cell; embedded as FritzTech so a locally installed copy can't mask a load failure). Lowercase on purpose: its capital R reads as A. ===== */
+  @font-face { font-family: "FritzTech"; font-display: block;
+    src: url(data:font/ttf;base64,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AAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAHADP/MwD7AzMAAwAHAAsADwATABcAGwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nP+cAGQAAP+cArwAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAANADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAZAAZAAA/5z+1ABkAAD/nADIAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP7UAGQAAP+cAMgAZAAA/5z+1ABkAAD/nAGQAGQAAP+cArwAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAJADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQD7AGQAAP+cAAAAZAAA/5z/OABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/zgAZAAA/5wAAABkAAD/nAJYAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAIAM/8zAPsDMwADAAcAAAEBAQEBAQEBAJcAZAAA/5z/nABkAAD/nABkAAD/nAAAAAAAAP+cAAAABAAz/zMBwwMzAAMABwALAA8AAAEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAGQAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAEAM/8zAJcDMwADAAABAQEBADMAZAAA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ABcAGwAfACMAJwArAC8AMwA3AAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/tQAZAAA/5wAAABkAAD/nAAAAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAAAAZAAA/5z+1ABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAABEAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAJcAZAAA/5wAZABkAAD/nABkAGQAAP+c/tQAZAAA/5wBkABkAAD/nP5wAGQAAP+cAAAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+1ABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP7UAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAALADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAAABkAAD/nP+cAGQAAP+c/5wAZAAA/5wAAABkAAD/nP+cAGQAAP+cAAAAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+c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AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAJcAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP4MAGQAAP+cAlgAZAAA/5z9qABkAAD/nAEsAGQAAP+cAGQAZAAA/5wAyABkAAD/nP2oAGQAAP+cAMgAZAAA/5wAyABkAAD/nADIAGQAAP+c/agAZAAA/5wAyABkAAD/nABkAGQAAP+cAGQAZAAA/5wAyABkAAD/nP4MAGQAAP+cASwAZAAA/5wAZABkAAD/nABkAGQAAP+cAlgAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAABQAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMARwBLAE8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAFwAz/zMCJwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAvADMANwA7AD8AQwBHAEsATwBTAFcAWwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cArwAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAABEAM/8zAcMDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wBLABkAAD/nP7UAGQAAP+cAAAAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAUADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAPwBDAEcASwBPAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/tQAZAAA/5wBLABkAAD/nABkAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBLABkAAD/nABkAGQAAP+c/nAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAABEAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP5wAGQAAP+cAAAAZAAA/5wAAABkAAD/nABkAGQAAP+cAGQAZAAA/5z/OABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAMADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+cABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAZABkAAD/nP+cAGQAAP+cAAAAZAAA/5wAAABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAUADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAPwBDAEcASwBPAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+cABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAyABkAAD/nABkAGQAAP+cAGQAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAABAAM/8zAcMDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5wCvAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAALADP/MwFfAzMAAwAHAAsADwATABcAGwAfACMAJwArAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAZABkAAD/nP+cAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5z/nABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAACwAz/zMBwwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBXwBkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+c/tQAZAAA/5wBLABkAAD/nP7UAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cArwAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAA8AM/8zAcMDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+c/zgAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+cArwAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAACQAz/zMBXwMzAAMABwALAA8AEwAXABsAHwAjAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAUADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAPwBDAEcASwBPAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAyABkAAD/nABkAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAABcAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMARwBLAE8AUwBXAFsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAQADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAPwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQCXAGQAAP+cAGQAZAAA/5wAZABkAAD/nP7UAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+cArwAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAEAAz/zMBwwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAvADMANwA7AD8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wBLABkAAD/nP7UAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/tQAZAAA/5wAAABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAABQAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMARwBLAE8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/5wAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAEwAz/zMCJwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAvADMANwA7AD8AQwBHAEsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP7UAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAEwAz/zMCJwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAvADMANwA7AD8AQwBHAEsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAACwAz/zMCJwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/zgAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cArwAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAABEAM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwA/AEMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAANADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/tQAZAAA/5wAyABkAAD/nP+cAGQAAP+cArwAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAUADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAPwBDAEcASwBPAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAZAAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+cABkAAD/nADIAGQAAP+cAMgAZAAA/5z+1ABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAA8AM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzADcAOwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+c/tQAZAAA/5wBkABkAAD/nP5wAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+cArwAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAEAAz/zMCJwMzAAMABwALAA8AEwAXABsAHwAjACcAKwAvADMANwA7AD8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nAGQAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/nAAZAAA/5wAyABkAAD/nADIAGQAAP+c/tQAZAAA/5wAZABkAAD/nABkAGQAAP+c/5wAZAAA/5wAAABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAA0AM/8zAicDMwADAAcACwAPABMAFwAbAB8AIwAnACsALwAzAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAJcAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAAABkAAD/nP+cAGQAAP+c/5wAZAAA/5z/nABkAAD/nP+cAGQAAP+cAAAAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wCvAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAkAM/8zAPsDMwADAAcACwAPABMAFwAbAB8AIwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nP+cAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nABkAGQAAP+cArwAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAACAAz/zMBwwMzAAMABwALAA8AEwAXABsAHwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nAAAAGQAAP+cAGQAZAAA/5wAAABkAAD/nABkAGQAAP+cAAAAZAAA/5wAZABkAAD/nAAAAGQAAP+cArwAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAJADP/MwD7AzMAAwAHAAsADwATABcAGwAfACMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+c/5wAZAAA/5wAZABkAAD/nAK8AAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAA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AAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAJADP/MwFfAzMAAwAHAAsADwATABcAGwAfACMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQCXAGQAAP+c/5wAZAAA/5wAZABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nP+cAGQAAP+cAGQAZAAA/5wAZABkAAD/nAK8AAD/nAAA/5wAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAsAM/8zAcMDMwADAAcACwAPABMAFwAbAB8AIwAnACsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAV8AZAAA/5z/nABkAAD/nABkAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/zgAZAAA/5wAZABkAAD/nAK8AAD/nAAA/5wAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAANADP/MwHDAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAAAAZAAA/5wAAABkAAD/nAEsAGQAAP+c/tQAZAAA/5wAyABkAAD/nP84AGQAAP+cAGQAZAAA/5wAZABkAAD/nP84AGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+cArwAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAHADP/MwCXAzMAAwAHAAsADwATABcAGwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cArwAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAPADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AMwA3ADsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAzAGQAAP+cAGQAZAAA/5wAyABkAAD/nP7UAGQAAP+cAMgAZAAA/5wAyABkAAD/nP5wAGQAAP+cAMgAZAAA/5wAyABkAAD/nP5wAGQAAP+cAMgAZAAA/5wAyABkAAD/nP5wAGQAAP+cAMgAZAAA/5wAyABkAAD/nAH0AAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAsAM/8zAcMDMwADAAcACwAPABMAFwAbAB8AIwAnACsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nABkAGQAAP+c/zgAZAAA/5wBLABkAAD/nP7UAGQAAP+cASwAZAAA/5z+1ABkAAD/nAEsAGQAAP+c/tQAZAAA/5wBLABkAAD/nAH0AAD/nAAAAGQAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAMADP/MwInAzMAAwAHAAsADwATABcAGwAfACMAJwArAC8AAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQCXAGQAAP+cAGQAZAAA/5wAZABkAAD/nP7UAGQAAP+cAZAAZAAA/5z+cABkAAD/nAGQAGQAAP+c/nAAZAAA/5wBkABkAAD/nP7UAGQAAP+cAGQAZAAA/5wAZABk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ACcAKwAvADMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAMwBkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nABkAGQAAP+c/5wAZAAA/5z/nABkAAD/nP+cAGQAAP+c/5wAZAAA/5wAZABkAAD/nABkAGQAAP+cAGQAZAAA/5wAZABkAAD/nAH0AAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAAAACgAz/zMBXwMzAAMABwALAA8AEwAXABsAHwAjACcAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAlwBkAAD/nABkAGQAAP+c/5wAZAAA/5wAAABkAAD/nP+cAGQAAP+cAGQAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAZABkAAD/nAJYAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAABkAAD/nAAAAAcAM/8zAJcDMwADAAcACwAPABMAFwAbAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nAAAAGQAAP+cAAAAZAAA/5wCvAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAoAM/8zAV8DMwADAAcACwAPABMAFwAbAB8AIwAnAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBADMAZAAA/5wAZABkAAD/nAAAAGQAAP+cAAAAZAAA/5wAAABkAAD/nABkAGQAAP+c/5wAZAAA/5wAAABkAAD/nP+cAGQAAP+cAGQAZAAA/5wCWAAA/5wAAABkAAD/nAAAAAAAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAGQAAP+cAAAAAAAA/5wAAAAAAAD/nAAAAAAAAP+cAAAAZAAA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) format("truetype"); }
+  :root { --tech: "FritzTech", var(--mono); }
+  .label, .kicker, .kicker .hm, .meter, .progress .count, .opt .key, .tbl .tagok, .tbl .n, .legend,
+  .stats span, .kpis span, .hk, .hv, .seg button, .wide-link, .dev-btn, .note,
+  .lcd .tag, .lcd .pair .k, .lcd .verdict {
+    font-family: var(--tech); font-weight: 400; font-size: 15px; letter-spacing: 0.05em; text-transform: lowercase; }
+  .kicker .hm { padding: 2px 6px; }
+  .lcd .tag, .lcd .pair .k, .lcd .verdict { letter-spacing: 0.08em; }
+
+  /* hints: no colored rule; a plain housing box led by a small amber lamp, like the run markers */
+  .coach { border-left: 0; border-radius: 0; padding: 10px 12px 10px 30px; position: relative;
+    background: var(--panel); box-shadow: inset 0 0 0 2px var(--panel-edge); }
+  .coach::before { content: ""; position: absolute; left: 12px; top: 17px; width: 8px; height: 8px; background: var(--amber); }
+
+  /* Technotot is reserved for three moments: the wordmark, the big headline, and GLITCH FOUND.
+     Everything else that was pixel-display moves to Technicality, which has a readable i and lowercase. */
+  .btn, .link, .seg button, .dev-btn, .milestone span, .milestone b, .today h2, .def .def-head b, .lcd.dead .big,
+  .stats b, .kpis b, .streak-row b, .avg b, .next-in .mono {
+    font-family: var(--tech); font-weight: 400; letter-spacing: 0.04em; text-transform: lowercase; }
+  .btn { font-size: 20px; }
+  .link { font-size: 16px; }
+  .stats b, .kpis b { font-size: 30px; letter-spacing: 0.04em; }
+  .streak-row b, .avg b, .next-in .mono { font-size: 20px; letter-spacing: 0.04em; }
+  .milestone b, .milestone span { font-size: 20px; }
+  .today h2 { font-size: 22px; }
+  .def .def-head b { font-size: 22px; }
+  .lcd.dead .big { font-size: 28px; }
+  .opt .key { color: var(--muted); }
+  /* "skip" is a real choice on the welcome screen: a full-size secondary key, outlined instead of filled */
+  .tut-intro .wide-link { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 16px;
+    font-size: 20px; color: var(--fg); text-decoration: none; background: var(--raised); border: 2px solid var(--fg);
+    box-shadow: 4px 4px 0 var(--hard); transition: transform 60ms, box-shadow 60ms; }
+  .tut-intro .wide-link:active { transform: translate(4px, 4px); box-shadow: none; }
+  .link { text-underline-offset: 5px; }
+  .wide-link { text-decoration: none; font-size: 10px; letter-spacing: .1em; }
+
+  /* next step + hints sit directly under the device so they are on screen when they matter */
+  #after .btn.wide { margin-top: 20px; }
+  /* secondary key: the same outlined key as "skip" on the welcome screen */
+  .btn.ghost { background: var(--raised); color: var(--fg); border-color: var(--fg); }
+  .btn.ghost:disabled { border-color: var(--panel-edge); }
+  #hintBlock .btn.wide { margin-top: 20px; }
+  .coach .label { display: block; margin: 0 0 4px; }
+  .rank + .sub { margin-top: 8px; }
+  .dev-tbl td { word-break: normal; }
+  .dev-tbl .o { white-space: nowrap; padding-right: 0; }
+  .dev-tbl .x { display: block; font-size: 12px; color: var(--muted); }
+  /* tap targets */
+  .tut-bar .link { min-width: 44px; padding-left: 12px; text-align: right; }
+  .seg button { min-height: 44px; }
+  /* clipboard-blocked fallback: square and mono like everything else the machine prints */
+  #shareFallback { width: 100%; margin-top: 12px; padding: 10px; border-radius: 0; border: 2px solid var(--panel-edge);
+    background: var(--raised); color: var(--fg); font: 14px/1.5 var(--mono); resize: none; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     CORE: pure game logic, no DOM. Extracted by tools/validate.mjs.
+     ============================================================ -->
+<script id="core">
+const Fritz = (() => {
+  const LAUNCH = [2026, 9, 12]; // Mon 12 Oct 2026 (month is 0-based) = puzzle #1
+  const SHARE_URL = 'shivanshi-das.github.io/fritz';
+  const RUNS = { normal: 8, hard: 4 };
+
+  // ---------- helpers ----------
+  function rng(seed) { // mulberry32
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+  const randInt = (r, lo, hi) => lo + Math.floor(r() * (hi - lo + 1));
+  function shuffle(r, arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  const uniq = arr => [...new Set(arr)];
+  const pad = (n, w) => String(n).padStart(w, '0');
+
+  // ---------- calendar (hand-rolled; avoids Date quirks for years < 100) ----------
+  const isLeap = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const daysIn = (y, m, febDays) =>
+    [31, febDays ?? (isLeap(y) ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+  function parseDate(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    const [y, mo, d] = [+m[1], +m[2], +m[3]];
+    if (y < 1 || mo < 1 || mo > 12 || d < 1 || d > daysIn(y, mo)) return null;
+    return { y, m: mo, d };
+  }
+  const fmtDate = ({ y, m, d }) => `${pad(y, 4)}-${pad(m, 2)}-${pad(d, 2)}`;
+  function nextDay(s, febDays) {
+    let { y, m, d } = parseDate(s);
+    d++;
+    if (d > daysIn(y, m, m === 2 ? febDays : undefined)) { d = 1; m++; }
+    if (m > 12) { m = 1; y++; }
+    return fmtDate({ y, m, d });
+  }
+
+  // ---------- input parsing / validation ----------
+  // Every field returns { ok, value } or { ok:false, error }. A run only counts when all fields are ok.
+  function parseField(f, raw) {
+    raw = raw ?? '';
+    switch (f.type) {
+      case 'text':
+        if (raw === '') return { ok: false, error: 'Type something first.' };
+        if (/[^\S ]/.test(raw)) return { ok: false, error: 'Only regular spaces, please (no tabs or line breaks).' };
+        if (raw.length > 60) return { ok: false, error: 'Keep it under 60 characters.' };
+        return { ok: true, value: raw };
+      case 'int': {
+        const t = raw.trim();
+        if (!/^-?\d+$/.test(t)) return { ok: false, error: 'Enter a whole number.' };
+        const n = Number(t);
+        if (n < f.min || n > f.max) return { ok: false, error: `Enter a number from ${f.min} to ${f.max}.` };
+        return { ok: true, value: n };
+      }
+      case 'money': {
+        const t = raw.trim().replace(/^\$/, '');
+        if (!/^\d+(\.\d{1,2})?$/.test(t)) return { ok: false, error: 'Enter an amount like 12.50 (up to 2 decimals).' };
+        const n = Number(t);
+        if (n < 0.01 || n > 99999.99) return { ok: false, error: 'Enter an amount from 0.01 to 99,999.99.' };
+        return { ok: true, value: n };
+      }
+      case 'list': {
+        if (raw.trim() === '') return { ok: false, error: 'Enter some items, separated by commas.' };
+        const items = raw.split(',').map(s => s.trim());
+        if (items.some(s => s === '')) return { ok: false, error: 'One of the items is empty. Check your commas.' };
+        if (items.length > 12) return { ok: false, error: 'Use 12 items or fewer.' };
+        return { ok: true, value: items };
+      }
+      case 'date':
+        if (!parseDate(raw.trim())) return { ok: false, error: 'Pick a valid date (YYYY-MM-DD, year 0001 to 9999).' };
+        return { ok: true, value: raw.trim() };
+    }
+    return { ok: false, error: 'Unknown field type.' };
+  }
+  function parseInput(p, raws) {
+    const value = {}, errors = {};
+    for (const f of p.inputs) {
+      const r = parseField(f, raws[f.key]);
+      if (r.ok) value[f.key] = r.value; else errors[f.key] = r.error;
+    }
+    return Object.keys(errors).length ? { ok: false, errors } : { ok: true, value };
+  }
+  const inputKey = inp => JSON.stringify(inp);
+  const textPuzzle = p => p.inputs.some(f => f.type === 'text');
+  // Outputs of text puzzles show spaces as · too, so the Title-o-matic's spacing is visible.
+  const showOutput = (p, s) => (textPuzzle(p) ? s.replace(/ /g, '·') : s);
+  // Human display of an input. Spaces become · for text puzzles so whitespace bugs are visible.
+  function showInput(p, inp) {
+    return p.inputs.map(f => {
+      const v = inp[f.key];
+      switch (f.type) {
+        case 'text': return v.replace(/ /g, '·');
+        case 'money': return '$' + v.toFixed(2);
+        case 'list': return v.join(', ');
+        default: return String(v);
+      }
+    }).join(p.joiner || ', ');
+  }
+
+  // ---------- per-type random generators (validator + prediction fallback) ----------
+  const WORDS = ['apple', 'orange', 'sky', 'moon', 'rhythm', 'eagle', 'banana', 'university', 'hello', 'world',
+    'iPhone', 'eBay', 'NASA', 'USA', 'McDonald', 'the', 'a', 'my', 'blue', 'idea', 'queue', 'xyz', 'tv'];
+  function genText(r) {
+    const n = randInt(r, 1, 4);
+    const caseStyle = pick(r, ['lower', 'lower', 'lower', 'title', 'upper', 'random', 'asis', 'asis']);
+    const words = [];
+    for (let i = 0; i < n; i++) {
+      let w = pick(r, WORDS);
+      if (caseStyle === 'lower') w = w.toLowerCase();
+      else if (caseStyle === 'title') w = w[0].toUpperCase() + w.slice(1).toLowerCase();
+      else if (caseStyle === 'upper') w = w.toUpperCase();
+      else if (caseStyle === 'random') w = [...w].map(c => (r() < 0.3 ? c.toUpperCase() : c.toLowerCase())).join('');
+      words.push(w);
+    }
+    const sp = () => (r() < 0.12 ? '  ' : ' ');
+    let s = words.reduce((acc, w, i) => (i ? acc + sp() + w : w), '');
+    if (r() < 0.1) s = ' ' + s;
+    if (r() < 0.1) s = s + ' ';
+    return s;
+  }
+  function genInt(r, f) {
+    if (r() < 0.4) {
+      const edges = [f.min, f.min + 1, f.max, f.max - 1, 2, 3, 4];
+      if (f.max >= 400) {
+        const c = randInt(r, 1, Math.floor(f.max / 100)) * 100;
+        edges.push(c, c, Math.min(f.max, randInt(r, 1, Math.floor(f.max / 400)) * 400), 1900, 2000, 2100);
+      }
+      const e = pick(r, edges);
+      if (e >= f.min && e <= f.max) return e;
+    }
+    return randInt(r, f.min, Math.min(f.max, r() < 0.5 ? 100 : f.max));
+  }
+  function genMoney(r) {
+    if (r() < 0.3) return pick(r, [0.01, 0.1, 1, 10, 20, 25, 30, 99.99, 100, 0.05]);
+    const cents = r() < 0.5 ? randInt(r, 1, 10000) : randInt(r, 1, 100) * 100;
+    return cents / 100;
+  }
+  function genList(r) {
+    const vocab = pick(r, [['a', 'b', 'c'], ['x', 'y'], ['cat', 'dog', 'Cat'], ['1', '2', '3', '4'], ['red', 'blue', 'green', 'sun']]);
+    const n = randInt(r, 1, 7);
+    return Array.from({ length: n }, () => pick(r, vocab));
+  }
+  function genDate(r) {
+    const roll = r();
+    const y = r() < 0.3 ? pick(r, [1900, 2000, 2020, 2023, 2024, 2025, 2100, 2400, 4, 100, 9999]) : randInt(r, 1, 9999);
+    let m, d;
+    if (roll < 0.15) { // 28 Feb, half the time in a leap year
+      m = 2; d = 28;
+      if (r() < 0.5) return fmtDate({ y: randInt(r, 1, 2499) * 4, m, d });
+    }
+    else if (roll < 0.4) { m = randInt(r, 1, 12); d = daysIn(y, m); }
+    else { m = randInt(r, 1, 12); d = randInt(r, 1, daysIn(y, m)); }
+    return fmtDate({ y, m, d });
+  }
+  function genInput(p, r) {
+    const inp = {};
+    for (const f of p.inputs) {
+      inp[f.key] = f.type === 'text' ? genText(r)
+        : f.type === 'int' ? genInt(r, f)
+        : f.type === 'money' ? genMoney(r)
+        : f.type === 'list' ? genList(r)
+        : genDate(r);
+    }
+    return inp;
+  }
+
+  // ---------- machines ----------
+  const boolFmt = b => (b ? 'True' : 'False');
+  const money = c => `$${Math.floor(c / 100)}.${pad(c % 100, 2)}`;
+  const dedupeFirst = a => a.filter((x, i) => a.indexOf(x) === i);
+  const dedupeAdjacent = a => a.filter((x, i) => i === 0 || x !== a[i - 1]);
+  const spaceCount = s => (s.match(/ /g) || []).length;
+  const out = (p, which, inp) => p.format(p[which](inp));
+
+  /* ONE MACHINE FORMAT. To add a machine, add one object to MACHINES and run `node tools/validate.mjs`.
+     A machine that fails the structural checks is left out of the rotation (see REJECTED), so it cannot reach players.
+
+       name         shown as the title; must be unique
+       day          'Mon'..'Sun': which weekday it plays on. Each weekday rotates through its own machines, week by week.
+                    Difficulty follows the day (Mon/Tue easy, Wed/Thu medium, Fri/Sat tricky, Sun boss).
+       description  what the machine is supposed to do
+       inputs       [{ key, label, type: 'text' | 'int' (min, max) | 'money' | 'list' | 'date' }]
+       examples     2+ inputs the buggy machine gets RIGHT (shown as "examples that work")
+       correct      input => the right output
+       buggy        input => what the broken machine outputs
+       predictions  3+ hand-picked inputs for the predict round: at least one glitch, at least one not
+       decoys       input => wrong-but-plausible outputs for the predict round (not needed for True/False machines)
+       par          runs a good player needs (1-8)
+       explanation  the glitch, in a sentence or two (shown on the results screen)
+       hints        2 or 3, each more specific than the last; the last one should not name an exact input
+
+     Optional: icon (a key of ICONS), realWorld (where this bug shows up in real software), joiner (between two fields),
+       format (output => string; default handles numbers, strings, lists and True/False),
+       glitchWhen (input => true when this input should trigger the glitch). Without it a glitch is simply
+       "buggy and correct disagree". With it the validator proves the two definitions match on 5,000 random inputs,
+       which catches a buggy function that has a second, unintended bug. */
+  const MACHINES = [
+    {
+      name: 'Vowel Counter', day: 'Mon', icon: 'vowel',
+      description: 'Counts the vowels (a, e, i, o, u) in a word or phrase, ignoring case.',
+      inputs: [{ key: 'text', label: 'Word or phrase', type: 'text' }],
+      examples: [{ text: 'banana' }, { text: 'rhythm' }],
+      correct: ({ text }) => (text.match(/[aeiou]/gi) || []).length,
+      buggy: ({ text }) => (text.match(/[aeiou]/g) || []).length,
+      glitchWhen: ({ text }) => /[AEIOU]/.test(text),
+      predictions: ['Apple', 'orange', 'UNIVERSITY', 'sky', 'Eagle Eye', 'moon'].map(text => ({ text })),
+      decoys: ({ text }) => {
+        const n = (text.match(/[aeiou]/gi) || []).length;
+        return [n + 1, n - 1, n + 2].filter(x => x >= 0);
+      },
+      par: 2,
+      explanation: 'It only counts lowercase vowels. Capital A, E, I, O and U are skipped.',
+      realWorld: 'Case-sensitive matching is a common oversight in search and validation code. A pattern written for lowercase quietly misses capitals.',
+      hints: [
+        "Both examples share something the description says shouldn't matter.",
+        'The description says "ignoring case". Has that been tested?',
+        'Try a word with a capital vowel.',
+      ],
+    },
+    {
+      name: 'Title-o-matic', day: 'Tue', icon: 'title',
+      description: 'Capitalizes the first letter of every word. The rest of each word stays exactly as typed.',
+      inputs: [{ key: 'text', label: 'Text', type: 'text' }],
+      examples: [{ text: 'hello world' }, { text: 'good morning' }],
+      correct: ({ text }) => text.split(' ').map(w => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' '),
+      buggy: ({ text }) => text.split(' ').map(w => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(' '),
+      glitchWhen: ({ text }) => text.split(' ').some(w => w.slice(1) !== w.slice(1).toLowerCase()),
+      predictions: ['the USA', 'my iPhone', 'eBay deals', 'fresh bread', 'ask NASA', 'blue sky'].map(text => ({ text })),
+      decoys: ({ text }) => [text, text.toUpperCase()],
+      par: 3,
+      explanation: 'It lowercases everything after the first letter of each word, so NASA becomes Nasa and iPhone becomes IPhone.',
+      realWorld: 'Title-case helpers often normalize the rest of each word, which breaks acronyms, brand names and surnames like McDonald.',
+      hints: [
+        'The description makes two promises. The examples only test one.',
+        '"The rest of each word stays exactly as typed." What input would show that it didn\'t?',
+        'Try a word with capitals after its first letter, like an acronym.',
+      ],
+    },
+    {
+      name: 'Dedupe Machine', day: 'Wed', icon: 'dedupe',
+      description: 'Removes repeated items from a list, keeping only the first time each appears.',
+      inputs: [{ key: 'items', label: 'Items (comma-separated)', type: 'list' }],
+      examples: [{ items: ['a', 'a', 'b'] }, { items: ['x', 'y', 'z'] }],
+      correct: ({ items }) => dedupeFirst(items),
+      buggy: ({ items }) => dedupeAdjacent(items),
+      glitchWhen: ({ items }) => { const c = dedupeAdjacent(items); return new Set(c).size !== c.length; },
+      predictions: [['cat', 'dog', 'cat'], ['1', '1', '2', '2'], ['red', 'blue', 'blue', 'red'], ['a', 'b', 'c'],
+        ['sun', 'sun', 'sun'], ['x', 'y', 'x', 'y']].map(items => ({ items })),
+      decoys: ({ items }) => { const d = dedupeFirst(items); return [d.slice().reverse(), d.slice().sort(), items]; },
+      par: 3,
+      explanation: 'It only removes an item when it is directly after an identical one. Repeats that are further apart stay in.',
+      realWorld: 'The Unix uniq command works this way by design, which is why it is usually paired with sort. Code that forgets this misses duplicates.',
+      hints: [
+        'In the example, the repeats sit side by side.',
+        'Change where the repeats sit in the list.',
+        'Put a different item between two identical ones.',
+      ],
+    },
+    {
+      name: 'Word Counter', day: 'Thu', icon: 'words',
+      description: 'Counts the words in a sentence.',
+      inputs: [{ key: 'text', label: 'Sentence', type: 'text' }],
+      examples: [{ text: 'hello world' }, { text: 'one two three' }],
+      correct: ({ text }) => text.trim().split(/\s+/).filter(Boolean).length,
+      buggy: ({ text }) => spaceCount(text) + 1,
+      glitchWhen: ({ text }) => /^ | $| {2}/.test(text),
+      predictions: ['hi  there', ' hello', 'good night', 'a b c d', 'end ', 'just one'].map(text => ({ text })),
+      decoys: ({ text }) => { const n = spaceCount(text) + 1; return [n + 1, n - 1].filter(x => x >= 0); },
+      par: 4,
+      explanation: 'It counts the spaces and adds one, so a leading, trailing or doubled space adds a word that is not there.',
+      realWorld: 'Splitting on a single space instead of any run of whitespace is a common bug in word counters and text parsers.',
+      hints: [
+        'How could a lazy builder count words without actually finding words?',
+        "It may be counting what's between the words. The · marks show every space.",
+        'Try an extra space: two in a row, or one at the start or end.',
+      ],
+    },
+    {
+      name: 'Leap Year Oracle', day: 'Fri', icon: 'oracle',
+      description: 'Tells you whether a year is a leap year.',
+      inputs: [{ key: 'year', label: 'Year', type: 'int', min: 1, max: 9999 }],
+      examples: [{ year: 2024 }, { year: 2023 }],
+      correct: ({ year: y }) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0,
+      buggy: ({ year: y }) => y % 4 === 0,
+      glitchWhen: ({ year: y }) => y % 100 === 0 && y % 400 !== 0,
+      predictions: [2100, 2000, 1900, 2400, 2025, 1996].map(year => ({ year })),
+      par: 4,
+      explanation: 'It treats every year divisible by 4 as a leap year. Century years like 1900 and 2100 are not, unless they are divisible by 400.',
+      realWorld: 'The century rule is easy to miss. Excel still treats 1900 as a leap year, kept for compatibility with Lotus 1-2-3.',
+      hints: [
+        '"Every 4th year" is only the first part of the leap year rule.',
+        'The full rule has exceptions for certain round-number years.',
+        "Try years ending in 00. They don't all behave the same.",
+      ],
+    },
+    {
+      name: 'Tip-o-matic', day: 'Sat', icon: 'receipt',
+      description: 'Splits a bill evenly between people, rounding each share UP to the nearest cent.',
+      inputs: [{ key: 'bill', label: 'Bill', type: 'money' },
+        { key: 'people', label: 'People', type: 'int', min: 1, max: 100 }],
+      joiner: ' ÷ ',
+      examples: [{ bill: 30, people: 3 }, { bill: 20, people: 4 }],
+      correct: ({ bill, people }) => Math.ceil(Math.round(bill * 100) / people),
+      buggy: ({ bill, people }) => Math.round(Math.round(bill * 100) / people),
+      glitchWhen: ({ bill, people: n }) => { const c = Math.round(bill * 100); return c % n !== 0 && (c % n) / n < 0.5; },
+      format: money,
+      predictions: [[10, 3], [20, 3], [1, 3], [100, 6], [25, 4], [50, 7]].map(([bill, people]) => ({ bill, people })),
+      decoys: ({ bill, people }) => {
+        const c = Math.ceil(Math.round(bill * 100) / people);
+        return [c + 1, c - 1, Math.floor(Math.round(bill * 100) / people) - 1].filter(x => x >= 0);
+      },
+      par: 5,
+      explanation: 'It rounds each share to the nearest cent instead of always up, so a leftover under half a cent is dropped.',
+      realWorld: 'Rounding in the wrong direction is one of the most common errors in billing code. Across many transactions the cents add up.',
+      hints: [
+        "Both examples split evenly. Most bills don't.",
+        'Shares should round UP. Look for a split where rounding up and rounding to nearest disagree.',
+        'Try a split where each exact share is only a little over a whole cent (like 3.333…), not a lot over (like 6.666…).',
+      ],
+    },
+    {
+      name: 'Tomorrow Machine', day: 'Sun', icon: 'calendar',
+      description: "Given a date, tells you the next day's date.",
+      inputs: [{ key: 'date', label: 'Date', type: 'date' }],
+      examples: [{ date: '2025-03-14' }, { date: '2025-01-31' }],
+      correct: ({ date }) => nextDay(date),
+      // February always has 28 days. 29 Feb (which it doesn't believe in) still rolls to 1 Mar:
+      // d becomes 30 > 28, so it is correct by accident, as specced.
+      buggy: ({ date }) => nextDay(date, 28),
+      glitchWhen: ({ date }) => { const { y, m, d } = parseDate(date); return isLeap(y) && m === 2 && d === 28; },
+      predictions: ['2024-02-28', '2023-02-28', '2025-12-31', '2028-02-28', '2025-04-30', '2020-02-28'].map(date => ({ date })),
+      decoys: ({ date }) => [date, nextDay(nextDay(date))],
+      par: 5,
+      explanation: 'It assumes February always has 28 days, so in a leap year it goes from 28 February straight to 1 March.',
+      realWorld: 'Hard-coded month lengths cause real failures on leap days, in billing systems, schedulers and devices.',
+      hints: [
+        'Dates get tricky where one month hands over to the next.',
+        "One month doesn't always have the same number of days.",
+        'Try the end of February in a leap year.',
+      ],
+    },
+  ];
+
+  // ---------- machine format: normalize + structural checks ----------
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const TIERS = { Mon: 'easy', Tue: 'easy', Wed: 'medium', Thu: 'medium', Fri: 'tricky', Sat: 'tricky', Sun: 'boss' };
+  const autoFormat = v => (typeof v === 'boolean' ? boolFmt(v) : Array.isArray(v) ? v.join(', ') : String(v));
+
+  // Author format in, the shape the rest of the game uses out.
+  function normalize(m) {
+    const format = m.format || autoFormat;
+    return {
+      day: m.day ?? '', difficulty: TIERS[m.day] || 'practice', name: m.name, icon: m.icon || 'generic',
+      spec: m.description, inputs: m.inputs, joiner: m.joiner, examples: m.examples,
+      reference: m.correct, buggy: m.buggy, format,
+      bool: typeof m.correct(m.examples[0]) === 'boolean',
+      isGlitchCase: m.glitchWhen || (x => format(m.buggy(x)) !== format(m.correct(x))),
+      predictionPool: m.predictions, decoys: m.decoys || (() => []),
+      par: m.par, glitchRule: m.explanation, realWorld: m.realWorld || '', hints: m.hints,
+    };
+  }
+  // Cheap enough to run on every page load. The 5,000-sample check lives in validate().
+  function checkMachine(p, daily = true) {
+    const e = [];
+    const str = s => typeof s === 'string' && s.trim() !== '';
+    if (!str(p.name)) e.push('name is missing');
+    if (daily && !DAYS.includes(p.day)) e.push(`day must be one of ${DAYS.join(', ')}`);
+    if (!str(p.spec)) e.push('description is missing');
+    if (!str(p.glitchRule)) e.push('explanation is missing');
+    if (!Array.isArray(p.inputs) || !p.inputs.length) e.push('inputs are missing');
+    if (typeof p.reference !== 'function' || typeof p.buggy !== 'function') e.push('correct and buggy must be functions');
+    if (!Number.isInteger(p.par) || p.par < 1 || p.par > RUNS.normal) e.push(`par must be a whole number from 1 to ${RUNS.normal}`);
+    if (!Array.isArray(p.hints) || p.hints.length < 2 || p.hints.length > 3) e.push('needs 2 or 3 hints');
+    else if (!p.hints.every(str) || new Set(p.hints.map(h => h.trim())).size !== p.hints.length)
+      e.push('hints must be non-empty and different from each other');
+    if (!Array.isArray(p.examples) || p.examples.length < 2) e.push('needs at least 2 examples');
+    const minPool = daily ? 3 : 2;
+    if (!Array.isArray(p.predictionPool) || p.predictionPool.length < minPool) e.push(`needs at least ${minPool} predictions`);
+    if (e.length) return e;
+    try {
+      p.examples.forEach((x, i) => {
+        if (out(p, 'buggy', x) !== out(p, 'reference', x)) e.push(`example ${i + 1} does not pass`);
+      });
+      if (!p.predictionPool.some(p.isGlitchCase)) e.push('prediction pool has no glitch case');
+      if (!p.predictionPool.some(x => !p.isGlitchCase(x))) e.push('prediction pool has no non-glitch case');
+      for (const x of p.predictionPool)
+        if (buildOptions(p, x, 1).length < 2) e.push(`prediction ${inputKey(x)} has fewer than 2 choices (add decoys)`);
+    } catch (err) { e.push(`threw while checking: ${err.message}`); }
+    return e;
+  }
+  function defineMachines(list) {
+    const machines = [], rejected = [], names = new Set();
+    for (const m of list) {
+      let p = null, errors;
+      try { p = normalize(m); errors = checkMachine(p); }
+      catch (err) { errors = [`not a valid machine object: ${err.message}`]; }
+      if (!errors.length && names.has(p.name)) errors.push('another machine already has this name');
+      if (errors.length) { rejected.push({ name: (m && m.name) || '(unnamed)', errors }); continue; }
+      names.add(p.name);
+      p.slot = machines.length;
+      machines.push(p);
+    }
+    return { machines, rejected };
+  }
+  const { machines: PUZZLES, rejected: REJECTED } = defineMachines(MACHINES);
+
+  // The tutorial machine: the same for everyone, every time. Never a daily puzzle, never in stats.
+  // Its hints are the last two coach lines of the practice round.
+  const TUTORIAL = Object.assign(normalize({
+    name: 'Doubler', icon: 'doubler',
+    description: 'Doubles any whole number.',
+    inputs: [{ key: 'n', label: 'Number', type: 'int', min: -999, max: 999 }],
+    examples: [{ n: 3 }, { n: 10 }],
+    correct: ({ n }) => n * 2,
+    buggy: ({ n }) => Math.abs(n) * 2,
+    glitchWhen: ({ n }) => n < 0,
+    predictions: [{ n: -5 }, { n: 6 }],
+    decoys: ({ n }) => [n * 2, n * 2 + 1],
+    par: 2,
+    explanation: 'It drops the minus sign, so negative numbers come back positive.',
+    realWorld: 'Code that quietly assumes inputs are positive is one of the most common sources of bugs.',
+    hints: ['Try a number the builder might have forgotten about.', 'Try a negative number.'],
+  }), { slot: -1 });
+
+  // ---------- daily selection ----------
+  function dayIndex(date = new Date()) {
+    const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    return Math.round((today - Date.UTC(...LAUNCH)) / 864e5);
+  }
+  const puzzleNumber = (date = new Date()) => Math.max(1, dayIndex(date) + 1);
+  // Launch day was a Monday, so (num - 1) % 7 is the weekday. Each weekday rotates through its own machines:
+  // week 1 plays the first Monday machine, week 2 the second, and so on, wrapping around.
+  const POOLS = DAYS.map(d => PUZZLES.filter(p => p.day === d));
+  function puzzleFor(num) {
+    const mod = (a, n) => ((a % n) + n) % n;
+    const pool = POOLS[mod(num - 1, 7)];
+    if (!pool.length) return PUZZLES[mod(num - 1, PUZZLES.length)]; // a weekday lost all its machines to REJECTED
+    return pool[mod(Math.floor((num - 1) / 7), pool.length)];
+  }
+  function msToMidnight(now = new Date()) {
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return next - now;
+  }
+
+  // ---------- predictions ----------
+  // 3 inputs, never one the player ran, always >= 1 glitch case and >= 1 non-glitch case.
+  function pickPredictions(p, seed, ranInputs) {
+    const r = rng(seed * 7919 + 13);
+    const ran = new Set(ranInputs.map(inputKey));
+    const fresh = shuffle(r, p.predictionPool.filter(x => !ran.has(inputKey(x))));
+    let g = fresh.filter(p.isGlitchCase), ng = fresh.filter(x => !p.isGlitchCase(x));
+    const used = new Set(ran);
+    const findGen = wantGlitch => {
+      for (let i = 0; i < 5000; i++) {
+        const x = genInput(p, r);
+        if (!used.has(inputKey(x)) && p.isGlitchCase(x) === wantGlitch) return x;
+      }
+      return null;
+    };
+    const chosen = [];
+    const take = x => { chosen.push(x); used.add(inputKey(x)); };
+    take(g.length ? g.shift() : findGen(true));
+    take(ng.length ? ng.shift() : findGen(false));
+    const rest = shuffle(r, [...g, ...ng]);
+    take(rest.length ? rest[0] : findGen(r() < 0.5));
+    return shuffle(r, chosen);
+  }
+  function buildOptions(p, inp, seed) {
+    if (p.bool) return ['True', 'False'];
+    const machine = out(p, 'buggy', inp), correct = out(p, 'reference', inp);
+    const decoys = uniq(p.decoys(inp).map(p.format)).filter(d => d !== machine && d !== correct);
+    const opts = uniq([machine, correct]);
+    for (const d of decoys) { if (opts.length >= 4 || (opts.length >= 3 && machine !== correct)) break; opts.push(d); }
+    return shuffle(rng(seed), opts);
+  }
+
+  // ---------- hints (opt-in, free, recorded) ----------
+  // `used` is how many hints the player has revealed today. Hints are available from the first run and cost nothing;
+  // the count shows on the results screen and the share card.
+  const clampHints = (p, n) => Math.max(0, Math.min(p.hints.length, Math.floor(Number(n)) || 0));
+  const canHint = (p, used, playing = true) => playing && clampHints(p, used) < p.hints.length;
+  const revealHint = (p, used, playing = true) => (canHint(p, used, playing) ? clampHints(p, used) + 1 : clampHints(p, used));
+  const shownHints = (p, used) => p.hints.slice(0, clampHints(p, used));
+  const hintWord = n => (n > 0 ? `${n} ${n === 1 ? 'hint' : 'hints'}` : '');
+
+  // ---------- scoring & share ----------
+  function rank({ won, runsUsed, par }) {
+    if (!won) return 'The glitch survived';
+    if (runsUsed === 1) return 'Clairvoyant';
+    if (runsUsed < par) return 'Glitch hunter';
+    if (runsUsed === par) return 'Debugger';
+    return 'Persistent';
+  }
+  // 75000 -> "1:15", 3723000 -> "1:02:03"
+  function fmtDuration(ms) {
+    const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+    return h ? `${h}:${pad(m, 2)}:${pad(s % 60, 2)}` : `${m}:${pad(s % 60, 2)}`;
+  }
+  // Words carry the meaning. The only emoji are data: one square per run, one mark per prediction.
+  // Hints and time are optional: with neither, the text is exactly what it was before they existed.
+  const vsPar = (runs, par) => runs === par ? 'right at par' : runs < par ? `${par - runs} under par` : `${runs - par} over par`;
+  function shareText({ num, puzzle, hard, won, runsUsed, maxRuns, predictions, hints = 0, ms = null }) {
+    const lines = [`Fritz #${num} · ${puzzle.name}${hard ? ' · hard mode' : ''}`];
+    const hinted = hints > 0 ? ` · ${hintWord(hints)}` : '';
+    if (won) {
+      const correct = predictions.filter(Boolean).length;
+      lines.push(rank({ won, runsUsed, par: puzzle.par }) + hinted);
+      lines.push(`Found it in ${runsUsed} ${runsUsed === 1 ? 'run' : 'runs'}, ${vsPar(runsUsed, puzzle.par)}  ${'⬜'.repeat(runsUsed - 1)}🟥`);
+      lines.push(`Predicted ${correct} of 3  ${predictions.map(ok => (ok ? '✅' : '❌')).join('')}`);
+    } else {
+      lines.push('The glitch survived' + hinted);
+      lines.push(`Not found in ${maxRuns} runs  ${'⬜'.repeat(maxRuns)}`);
+    }
+    if (typeof ms === 'number' && ms > 0) lines.push(`Time ${fmtDuration(ms)}`);
+    lines.push(SHARE_URL);
+    return lines.join('\n');
+  }
+
+  // ---------- playtest timer ----------
+  // Pure: every function takes the record and the current time (ms) and returns a new record.
+  //   { startedAt, endedAt, activeMs, resumedAt, wallMs }  plus whatever extra fields the caller attached.
+  // activeMs only counts while the page is visible; wallMs is plain end - start.
+  const timer = {
+    start: (rec, now) => (rec && rec.startedAt ? rec : { ...rec, startedAt: now, endedAt: null, activeMs: 0, resumedAt: now }),
+    pause: (rec, now) => (!rec || rec.endedAt || rec.resumedAt == null ? rec
+      : { ...rec, activeMs: rec.activeMs + Math.max(0, now - rec.resumedAt), resumedAt: null }),
+    resume: (rec, now) => (!rec || rec.endedAt || rec.resumedAt != null ? rec : { ...rec, resumedAt: now }),
+    // After a reload: a segment left open by a page that never got to pause is dropped, not counted.
+    reopen: (rec, now) => (!rec || rec.endedAt ? rec : { ...rec, resumedAt: now }),
+    stop: (rec, now) => (!rec || rec.endedAt ? rec : { ...timer.pause(rec, now), endedAt: now, wallMs: Math.max(0, now - rec.startedAt) }),
+    active: (rec, now) => (!rec ? 0 : rec.activeMs + (!rec.endedAt && rec.resumedAt != null ? Math.max(0, now - rec.resumedAt) : 0)),
+  };
+  // sets: { real: { tutorial, days: { [num]: rec } }, dev: { ... } } -> plain JSON for the dev panel export.
+  function exportTimes(sets, now) {
+    const iso = t => new Date(t).toISOString();
+    const clean = r => {
+      const { startedAt, endedAt, activeMs, resumedAt, wallMs, ...extra } = r;
+      return { ...extra, startedAt: iso(startedAt), endedAt: endedAt ? iso(endedAt) : null, finished: !!endedAt,
+        activeMs: timer.active(r, now), wallMs: endedAt ? wallMs : Math.max(0, now - startedAt) };
+    };
+    const set = s => ({
+      tutorial: s && s.tutorial && s.tutorial.startedAt ? clean(s.tutorial) : null,
+      days: Object.keys((s && s.days) || {}).map(Number).sort((a, b) => a - b)
+        .filter(n => s.days[n] && s.days[n].startedAt).map(n => ({ num: n, ...clean(s.days[n]) })),
+    });
+    return { app: 'fritz', exportedAt: iso(now), real: set(sets.real), dev: set(sets.dev) };
+  }
+
+  // ---------- stats (history = { [num]: { won, runsUsed, correct, hard } }) ----------
+  function computeStats(history, today) {
+    const nums = Object.keys(history).map(Number).sort((a, b) => a - b);
+    const wins = nums.filter(n => history[n].won);
+    let best = 0, run = 0, prev = null;
+    for (const n of nums) {
+      run = history[n].won ? (prev === n - 1 && run > 0 ? run + 1 : 1) : 0;
+      best = Math.max(best, run);
+      prev = n;
+    }
+    // Today unplayed doesn't break the streak yet; a missed day or a loss does.
+    let current = 0;
+    for (let k = history[today] ? today : today - 1; history[k]?.won; k--) current++;
+    const hist = Array(9).fill(0); // [1..8] runs-to-break; index 0 unused
+    let losses = 0;
+    for (const n of nums) history[n].won ? hist[history[n].runsUsed]++ : losses++;
+    return {
+      played: nums.length,
+      winPct: nums.length ? Math.round((wins.length / nums.length) * 100) : 0,
+      current, best, hist, losses,
+      avgCorrect: wins.length ? wins.reduce((a, n) => a + history[n].correct, 0) / wins.length : null,
+    };
+  }
+  const MILESTONES = [3, 7, 30];
+
+  // ---------- validator ----------
+  // Structural checks + 5,000 random inputs per machine. Machines that were rejected at load are reported as failures.
+  function validate(samples = 5000, seed = 12345, machines = [...PUZZLES, TUTORIAL], rejected = REJECTED) {
+    return machines.map(p => {
+      const errors = checkMachine(p, p !== TUTORIAL);
+      if (errors.length) return { slot: p.slot, name: p.name, pass: false, rate: 0, errors };
+      const r = rng(seed + p.slot);
+      let glitches = 0;
+      for (let i = 0; i < samples; i++) {
+        const x = genInput(p, r);
+        const differs = out(p, 'buggy', x) !== out(p, 'reference', x);
+        const says = p.isGlitchCase(x);
+        if (says) glitches++;
+        if (differs !== says && errors.length < 5)
+          errors.push(`isGlitchCase=${says} but outputs ${differs ? 'differ' : 'match'} for ${inputKey(x)}`);
+      }
+      for (const x of [...p.examples, ...p.predictionPool]) {
+        const raws = {};
+        for (const f of p.inputs) raws[f.key] = f.type === 'list' ? x[f.key].join(', ') : String(x[f.key]);
+        const parsed = parseInput(p, raws);
+        if (!parsed.ok || inputKey(parsed.value) !== inputKey(x)) errors.push(`${inputKey(x)} fails input validation`);
+      }
+      const rate = glitches / samples;
+      if (glitches === 0) errors.push('no glitch case generated');
+      else if (rate < 0.05) errors.push(`glitch cases too rare (${(rate * 100).toFixed(1)}%)`);
+      return { slot: p.slot, name: p.name, pass: errors.length === 0, rate, errors };
+    }).concat(rejected.map(x => ({ slot: -2, name: x.name, pass: false, rate: 0, errors: x.errors })));
+  }
+
+  return {
+    LAUNCH, SHARE_URL, RUNS, PUZZLES, TUTORIAL, REJECTED, DAYS, rng, shuffle,
+    parseField, parseInput, inputKey, showInput, showOutput, genInput,
+    out, dayIndex, puzzleNumber, puzzleFor, msToMidnight,
+    pickPredictions, buildOptions, rank, shareText, validate, computeStats, MILESTONES,
+    defineMachines, checkMachine,
+    clampHints, canHint, revealHint, shownHints, hintWord,
+    timer, exportTimes, fmtDuration,
+  };
+})();
+</script>
+
+<!-- ============================================================
+     APP: UI. Increment 3 = break, predict, results (no persistence yet).
+     ============================================================ -->
+<div class="wrap">
+  <header class="top">
+    <button class="wordmark" id="wordmark" aria-label="Fritz"><span>Fr</span><span>i</span><span>tz</span></button>
+    <div class="top-actions" id="topActions"></div>
+  </header>
+  <main id="app"></main>
+</div>
+<dialog id="modal" aria-labelledby="modalTitle"></dialog>
+
+<script>
+const ICONS = {
+  vowel: '<path d="M5 20 12 4l7 16M8 14h8"/>',
+  title: '<path d="M4 5h16M12 5v15M8.5 20h7"/>',
+  dedupe: '<rect x="3" y="3" width="12" height="12" rx="2"/><rect x="9" y="9" width="12" height="12" rx="2"/>',
+  words: '<path d="M4 6h16M4 11h11M4 16h14M4 21h7"/>',
+  oracle: '<circle cx="12" cy="10" r="7"/><path d="M8 21h8M9.5 17l-1 4M14.5 17l1 4M9 8a3 3 0 0 1 3-2"/>',
+  receipt: '<path d="M6 2h12v20l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 22zM9 7h6M9 11h6M9 15h3"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v4M10 16h4"/>',
+  doubler: '<path d="M4 8h6M7 5v6M14 16h6M4 19 20 5"/>',
+  generic: '<rect x="4" y="4" width="16" height="16"/><path d="M9 9h6v6H9zM2 9h2M2 15h2M20 9h2M20 15h2M9 2v2M15 2v2M9 20v2M15 20v2"/>',
+};
+const icon = p => ICONS[p.icon] || ICONS.generic;
+const CHECK = '<svg viewBox="0 0 16 16"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
+const CROSS = '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+const DAY_NAMES = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+// Same vertical layout on every screen, scaled to fit: width-bound on phones, grows on tall and wide displays.
+function fitToDisplay() {
+  const z = Math.min(1.45, Math.max(0.85, Math.min(innerWidth / 390, innerHeight / 640)));
+  document.documentElement.style.setProperty('--z', z.toFixed(3));
+}
+fitToDisplay();
+addEventListener('resize', fitToDisplay);
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const $ = sel => document.querySelector(sel);
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const canHover = () => matchMedia('(hover: hover)').matches;
+const mark = (cls, inner = '') => `<span class="mark ${cls}">${inner}</span>`;
+
+// ---------- setup ----------
+const params = new URLSearchParams(location.search);
+const DEV = params.get('dev') === '1';
+const num = DEV && params.get('day') ? Math.max(1, parseInt(params.get('day'), 10) || 1) : Fritz.puzzleNumber();
+const P = Fritz.puzzleFor(num);
+
+// localStorage behind try/catch, with an in-memory copy so the game still works when storage is blocked.
+// Dev mode uses its own namespace so testing never touches real streaks.
+const Store = (() => {
+  const prefix = DEV ? 'fritz-dev:v1:' : 'fritz:v1:';
+  const mem = new Map();
+  return {
+    load(key, fallback) {
+      try { const v = localStorage.getItem(prefix + key); if (v !== null) return JSON.parse(v); } catch {}
+      return mem.has(key) ? JSON.parse(mem.get(key)) : fallback;
+    },
+    save(key, val) {
+      const json = JSON.stringify(val);
+      mem.set(key, json);
+      try { localStorage.setItem(prefix + key, json); } catch {}
+    },
+    // Read-only look into a namespace by its full prefix (the dev panel shows real-play times too).
+    peek(ns, key, fallback) {
+      try { const v = localStorage.getItem(ns + key); if (v !== null) return JSON.parse(v); } catch {}
+      return ns === prefix && mem.has(key) ? JSON.parse(mem.get(key)) : fallback;
+    },
+    remove(key) {
+      mem.delete(key);
+      try { localStorage.removeItem(prefix + key); } catch {}
+    },
+    clearAll() {
+      mem.clear();
+      try { Object.keys(localStorage).filter(k => k.startsWith(prefix)).forEach(k => localStorage.removeItem(k)); } catch {}
+    },
+  };
+})();
+
+const settings = { hard: false, theme: 'auto', ...Store.load('settings', {}) };
+const PHASES = ['break', 'found', 'lost', 'predict', 'done'];
+const saved = Store.load(`day:${num}`, null);
+// A save from before a deploy that changed today's machine (a new one joined this weekday's rotation) is discarded.
+const usable = saved && saved.num === num && Array.isArray(saved.runs) && PHASES.includes(saved.phase)
+  && (!saved.machine || saved.machine === P.name);
+const state = usable ? saved : {
+  num,
+  machine: P.name,
+  hard: settings.hard,
+  phase: 'break',   // break -> found | lost -> predict (wins only) -> done
+  runs: [],         // { input, output, expected, glitch }
+  hints: 0,         // how many hints the player has revealed
+  predict: null,    // { items: [{ input, options, pick }], i }
+  result: null,     // { won, runsUsed, predictions: [bool], milestone, hints, ms }
+};
+state.machine = P.name;
+state.hints = Fritz.clampHints(P, state.hints); // older saves have no hints field
+const persist = () => Store.save(`day:${state.num}`, state);
+
+// ---------- playtest timer: first run -> result, per day; plus the first trip through the tutorial ----------
+// Stored in localStorage only. Shown and exported from the dev panel (?dev=1). No network calls.
+let dayRec = Fritz.timer.reopen(Store.load('times', {})[num] || null, Date.now());
+if (dayRec && !dayRec.endedAt && state.runs.length === 0) dayRec = null; // today's save was reset or discarded
+let tutRec = Fritz.timer.reopen(Store.load('tutorialTime', null), Date.now());
+let timersOff = false; // set by the dev panel's resets, so the page closing doesn't write the old times back
+function saveTimes() {
+  if (timersOff) return;
+  const times = Store.load('times', {});
+  if (dayRec) times[num] = dayRec; else delete times[num];
+  Store.save('times', times);
+  if (tutRec) Store.save('tutorialTime', tutRec);
+}
+function pauseTimers() {
+  const t = Date.now();
+  dayRec = Fritz.timer.pause(dayRec, t); tutRec = Fritz.timer.pause(tutRec, t);
+  saveTimes();
+}
+function resumeTimers() {
+  const t = Date.now();
+  dayRec = Fritz.timer.resume(dayRec, t); tutRec = Fritz.timer.resume(tutRec, t);
+}
+document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? pauseTimers() : resumeTimers()));
+addEventListener('pagehide', pauseTimers);
+addEventListener('pageshow', resumeTimers);
+const stats = () => Fritz.computeStats(Store.load('history', {}), state.num);
+const firstGame = () => Object.keys(Store.load('history', {})).length === 0;
+const maxRuns = () => (state.hard ? Fritz.RUNS.hard : Fritz.RUNS.normal);
+const glitchRun = () => state.runs.find(r => r.glitch);
+const kicker = extra => `<p class="kicker">#${state.num} · ${extra}</p>`;
+
+function logTable(runs, p = P) {
+  return `<table class="tbl"><tbody>${runs.map((r, i) => `
+    <tr class="${r.glitch ? 'hit' : ''}">
+      <td class="n">${i + 1}</td>
+      <td>${esc(Fritz.showInput(p, r.input))}</td>
+      <td class="o">${esc(Fritz.showOutput(p, r.output))}</td>
+      <td class="m"><span class="mk ${r.glitch ? 'hit' : 'pass'}" aria-label="${r.glitch ? 'glitch' : 'worked'}"></span></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- break phase ----------
+function fieldHTML(f) {
+  const id = `f-${f.key}`;
+  const common = `id="${id}" name="${f.key}" autocomplete="off" enterkeyhint="go" aria-describedby="msg"`;
+  let input;
+  switch (f.type) {
+    case 'int':
+      input = `<input ${common} type="text" ${f.min >= 0 ? 'inputmode="numeric"' : ''} placeholder="${f.min}–${f.max}">`; break;
+    case 'money':
+      input = `<span class="prefix"><input ${common} type="text" inputmode="decimal" placeholder="0.00"></span>`; break;
+    case 'date':
+      input = `<input ${common} type="date" min="0001-01-01" max="9999-12-31">`; break;
+    case 'list':
+      input = `<input ${common} type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="a, b, c">`; break;
+    default:
+      input = `<input ${common} type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Type anything">`;
+  }
+  return `<label class="field ${f.key}" for="${id}"><span class="label">${esc(f.label)}</span>${input}</label>`;
+}
+
+function renderBreak() {
+  const ex = P.examples.map(x => `<tr>
+      <td>${esc(Fritz.showInput(P, x))}</td>
+      <td class="o">${esc(Fritz.showOutput(P, Fritz.out(P, 'reference', x)))}</td>
+      <td class="m"><span class="tagok">OK</span></td></tr>`).join('');
+  $('#app').innerHTML = `
+    ${kicker(`${DAY_NAMES[P.day]} · ${P.difficulty}${state.hard ? '<span class="hm">Hard mode</span>' : ''}`)}
+    <div class="title-row">
+      <h1 id="mname">${esc(P.name)}</h1>
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true">${icon(P)}</svg>
+    </div>
+    <p class="lede">${esc(P.spec)}</p>
+    ${firstGame() && state.runs.length === 0 && state.phase === 'break'
+      ? '<p class="coach" id="goal">Find an input this machine gets <b>wrong</b>.</p>' : ''}
+    <section class="block" aria-label="Examples">
+      <h2 class="label">Examples that work</h2>
+      <table class="tbl"><tbody>${ex}</tbody></table>
+    </section>
+    <div class="device">
+      <section class="lcd" id="lcd" aria-live="polite" aria-label="Machine display"></section>
+      <form class="controls" id="runForm" novalidate>
+        <div class="fields">${P.inputs.map(fieldHTML).join('')}
+          <button class="btn" id="runBtn" type="submit">Run</button>
+        </div>
+        <p class="msg" id="msg" role="status"></p>
+      </form>
+      <div class="meter"><span id="runsText"></span><span class="pips" id="pips" aria-hidden="true"></span></div>
+    </div>
+    <div id="after"></div>
+    <section id="hintBlock" aria-label="Hints"></section>
+    <section class="block" id="logBlock" aria-label="Your runs"></section>`;
+
+  $('#runForm').addEventListener('submit', e => { e.preventDefault(); doRun(); });
+  for (const f of P.inputs) {
+    const el = $(`#f-${f.key}`);
+    // Text puzzles: mirror the input with spaces as · so whitespace is visible before running.
+    el.addEventListener('input', () => {
+      delete el.dataset.ran;
+      f.type === 'text' && el.value.includes(' ')
+        ? setMsg(`<span class="seen">${esc(el.value.replace(/ /g, '·'))}</span> <span class="legend">· = space</span>`, false, true)
+        : setMsg('');
+    });
+    replaceOnFocus(el);
+  }
+  const last = state.runs[state.runs.length - 1];
+  if (state.phase === 'lost') showLcd('dead');
+  else showLcd(last ? (last.glitch ? 'glitch' : 'ok') : 'idle', last);
+  updateBreak();
+  if (state.phase === 'break' && canHover()) $(`#f-${P.inputs[0].key}`).focus();
+}
+
+// After a run the field still holds what was just run. Mark it, so the next focus selects it all and typing
+// replaces it; any edit clears the mark, so a half-typed input is never selected out from under the player.
+function selectAll(el) {
+  if (el.type === 'date') return;
+  try { el.setSelectionRange(0, el.value.length); } catch { el.select?.(); }
+}
+function replaceOnFocus(el) {
+  el.addEventListener('focus', () => { if (el.dataset.ran) requestAnimationFrame(() => selectAll(el)); });
+}
+function markRan(els) {
+  for (const el of els) {
+    el.dataset.ran = '1';
+    if (document.activeElement === el) selectAll(el);
+  }
+  // With a keyboard and mouse, go straight back to the first field. On touch this would pop the keyboard open.
+  if (canHover() && els[0]) { els[0].focus(); selectAll(els[0]); }
+}
+
+function playGlitch() {
+  const lcd = $('#lcd');
+  if (reducedMotion()) return;
+  lcd.classList.remove('glitching'); void lcd.offsetWidth; lcd.classList.add('glitching');
+  setTimeout(() => lcd.classList.remove('glitching'), 420);
+  navigator.vibrate?.([30, 40, 60]);
+}
+
+function bigClass(s) {
+  const n = [...s].length;
+  return n <= 7 ? '' : n <= 12 ? 'm' : n <= 18 ? 's' : 'xs';
+}
+
+function showLcd(mode, run) {
+  const lcd = $('#lcd');
+  lcd.classList.remove('glitched', 'dead');
+  const outStr = run ? Fritz.showOutput(P, run.output) : '';
+  const runTag = run ? `<span class="tag">RUN ${state.runs.indexOf(run) + 1}/${maxRuns()}</span>` : '';
+  const inLine = run ? `<div class="line">&gt; ${esc(Fritz.showInput(P, run.input))}</div>` : '';
+  if (mode === 'idle') {
+    lcd.innerHTML = `<span class="tag">READY</span><div class="big glow">&gt;<span class="cursor">_</span></div>`;
+  } else if (mode === 'ok') {
+    lcd.innerHTML = `${runTag}${inLine}<div class="big glow ${bigClass(outStr)}">${esc(outStr)}</div>`;
+  } else if (mode === 'glitch') {
+    lcd.classList.add('glitched');
+    lcd.innerHTML = `${runTag}<div class="alarm glow">GLITCH FOUND</div>${inLine}
+      <div class="pair">
+        <span class="k">OUTPUT</span><span class="v bad glow">${esc(outStr)}</span>
+        <span class="k">EXPECTED</span><span class="v glow">${esc(Fritz.showOutput(P, run.expected))}</span>
+      </div>`;
+  } else if (mode === 'dead') {
+    lcd.classList.add('dead');
+    lcd.innerHTML = `<span class="tag">NO RUNS LEFT</span><div class="big s">THE GLITCH SURVIVED</div>`;
+  }
+}
+
+function updateBreak() {
+  const used = state.runs.length, max = maxRuns(), over = state.phase !== 'break';
+  $('#runsText').textContent = over ? `${used}/${max} runs used` : `${max - used} of ${max} runs left`;
+  $('#pips').innerHTML = Array.from({ length: max }, (_, i) =>
+    `<span class="pip ${i < used ? (state.runs[i].glitch ? 'hit' : 'used') : ''}"></span>`).join('');
+  $('#runBtn').disabled = over;
+  for (const f of P.inputs) $(`#f-${f.key}`).disabled = over;
+
+  $('#logBlock').innerHTML = used ? `<h2 class="label">Log</h2>${logTable(state.runs)}` : '';
+
+  if (used) $('#goal')?.remove();
+
+  const last = state.runs[used - 1];
+  if (!glitchRun() && last && !over) setMsg(firstGame() && used >= 4 && Fritz.canHint(P, state.hints)
+    ? 'Works as expected. Stuck? Tap Hint.'
+    : 'Works as expected.');
+  else if (state.phase === 'lost') setMsg('The glitch survived.');
+  else if (!last) setMsg('');
+
+  renderHints();
+  const after = $('#after');
+  if (state.phase === 'found') {
+    setMsg('');
+    after.innerHTML = `<button class="btn wide" id="next">Predict the glitch</button>`;
+    $('#next').onclick = startPredict;
+  } else if (state.phase === 'lost') {
+    after.innerHTML = `<button class="btn wide" id="next">See results</button>`;
+    $('#next').onclick = () => finish(false);
+  } else after.innerHTML = '';
+}
+
+// ---------- hints: opt-in, one per tap, saved with the day ----------
+function hintBoxes() {
+  const total = P.hints.length;
+  return Fritz.shownHints(P, state.hints).map((h, i) =>
+    `<p class="coach" id="hint-${i + 1}"><span class="label">Hint ${i + 1} of ${total}</span>${esc(h)}</p>`).join('');
+}
+function renderHints() {
+  const used = state.hints, total = P.hints.length, playing = state.phase === 'break';
+  const btn = !playing ? ''
+    : Fritz.canHint(P, used) ? `<button class="btn wide ghost" id="hintBtn" type="button">${used ? 'Next hint' : 'Hint'} <span class="btn-note">${used + 1} of ${total}</span></button>`
+    : `<button class="btn wide ghost" type="button" disabled>No more hints</button>`;
+  $('#hintBlock').innerHTML = `<div id="hintList" role="status">${hintBoxes()}</div>${btn}`;
+  const b = $('#hintBtn');
+  if (b) b.onclick = takeHint;
+}
+function takeHint() {
+  const next = Fritz.revealHint(P, state.hints, state.phase === 'break');
+  if (next === state.hints) return;
+  state.hints = next;
+  persist();
+  renderHints();
+  $(`#hint-${next}`)?.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  ($('#hintBtn') || $(`#f-${P.inputs[0].key}`))?.focus({ preventScroll: true });
+}
+
+function setMsg(text, isErr = false, html = false) {
+  const m = $('#msg');
+  m.className = 'msg' + (isErr ? ' err' : '');
+  m[html ? 'innerHTML' : 'textContent'] = text;
+  for (const f of P.inputs) $(`#f-${f.key}`).setAttribute('aria-invalid', isErr ? 'true' : 'false');
+}
+
+function doRun() {
+  if (state.phase !== 'break' || state.runs.length >= maxRuns()) return;
+  const raws = {};
+  for (const f of P.inputs) raws[f.key] = $(`#f-${f.key}`).value;
+  const parsed = Fritz.parseInput(P, raws);
+  if (!parsed.ok) {
+    const [k, msg] = Object.entries(parsed.errors)[0];
+    setMsg(msg, true);
+    $(`#f-${k}`).focus();
+    return;
+  }
+  const input = parsed.value, key = Fritz.inputKey(input);
+  if (state.runs.some(r => Fritz.inputKey(r.input) === key)) return setMsg('Already ran that one. Try something else.', true);
+
+  const output = Fritz.out(P, 'buggy', input), expected = Fritz.out(P, 'reference', input);
+  const run = { input, output, expected, glitch: output !== expected };
+  state.runs.push(run);
+  if (state.runs.length === 1) { // the clock starts on the first run that counts
+    dayRec = { ...Fritz.timer.start(null, Date.now()), machine: P.name, hard: state.hard };
+    saveTimes();
+  }
+
+  if (run.glitch) {
+    state.phase = 'found';
+    showLcd('glitch', run);
+    playGlitch();
+  } else {
+    showLcd('ok', run);
+    if (state.runs.length >= maxRuns()) { state.phase = 'lost'; setTimeout(() => showLcd('dead'), 900); }
+  }
+  persist();
+  updateBreak();
+  if (state.phase === 'break') markRan(P.inputs.map(f => $(`#f-${f.key}`)));
+  else showNext();
+}
+// Put the next-step button in focus and make sure it is actually on screen.
+function showNext() {
+  const b = $('#next');
+  if (!b) return;
+  b.focus({ preventScroll: true });
+  b.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+}
+
+// ---------- predict phase ----------
+function startPredict() {
+  const inputs = Fritz.pickPredictions(P, state.num, state.runs.map(r => r.input));
+  state.predict = {
+    i: 0,
+    items: inputs.map((input, k) => ({ input, options: Fritz.buildOptions(P, input, state.num * 31 + k), pick: null })),
+  };
+  state.phase = 'predict';
+  persist();
+  render();
+}
+
+const predRight = x => x.pick === Fritz.out(P, 'buggy', x.input);
+// After a pick: what the machine said next to what the player said, so "wrong" can't be read as "the machine is wrong".
+function verdictHTML(machine, you) {
+  const right = machine === you;
+  return `<div class="pair">
+      <span class="k">MACHINE</span><span class="v glow">${esc(machine)}</span>
+      <span class="k">YOU</span><span class="v glow ${right ? '' : 'bad'}">${esc(you)}</span>
+    </div>
+    <div class="verdict ${right ? 'yes' : 'no'}">${right ? 'CORRECT' : 'WRONG'}</div>`;
+}
+
+function renderPredict() {
+  $('#app').innerHTML = `
+    ${kicker(esc(P.name))}
+    <h1>Now predict the glitch.</h1>
+    <p class="sub">What will the machine say?</p>
+    ${firstGame() ? '<p class="coach">Pick what the broken machine will say, not the right answer.</p>' : ''}
+    <div class="device">
+      <div class="progress" id="progress"></div>
+      <section class="lcd" id="lcd" aria-live="polite" aria-label="Machine display"></section>
+      <div class="options" id="options" role="group" aria-label="Choose the machine's output"></div>
+    </div>
+    <div id="after"></div>
+    <details class="ref">
+      <summary><span class="label">Your runs</span></summary>
+      ${logTable(state.runs)}
+    </details>`;
+  updatePredict();
+}
+
+function updatePredict() {
+  const { items, i } = state.predict;
+  const it = items[i];
+  const machine = Fritz.out(P, 'buggy', it.input);
+  $('#progress').innerHTML = items.map((x, k) =>
+    x.pick === null ? mark(k === i ? 'cur' : '') : predRight(x) ? mark('yes', CHECK) : mark('no', CROSS)).join('') +
+    `<span class="count">${i + 1} of ${items.length}</span>`;
+
+  const lcd = $('#lcd');
+  const inLine = `<div class="line">&gt; ${esc(Fritz.showInput(P, it.input))}</div>`;
+  if (it.pick === null) {
+    lcd.innerHTML = `<span class="tag">PREDICT</span>${inLine}<div class="big glow">?<span class="cursor">█</span></div>`;
+  } else {
+    lcd.innerHTML = `<span class="tag">PREDICT</span>${inLine}${verdictHTML(Fritz.showOutput(P, machine), Fritz.showOutput(P, it.pick))}`;
+  }
+
+  $('#options').innerHTML = it.options.map((o, k) => {
+    const cls = it.pick === null ? '' : o === machine ? 'right' : o === it.pick ? 'wrong' : 'dim';
+    const res = cls === 'right' ? mark('yes res', CHECK) : cls === 'wrong' ? mark('no res', CROSS) : '';
+    return `<button class="opt ${cls}" data-k="${k}" ${it.pick !== null ? 'disabled' : ''}>
+      <span class="key" aria-hidden="true">${k + 1}</span><span class="val">${esc(Fritz.showOutput(P, o))}</span>${res}</button>`;
+  }).join('');
+  $('#options').querySelectorAll('.opt').forEach(b => (b.onclick = () => choose(+b.dataset.k)));
+
+  const last = i === items.length - 1;
+  $('#after').innerHTML = it.pick === null ? '' : `<button class="btn wide" id="next">${last ? 'See results' : 'Next'}</button>`;
+  if (it.pick !== null) {
+    $('#next').onclick = () => {
+      if (last) finish(true);
+      else { state.predict.i++; persist(); updatePredict(); }
+    };
+    $('#next').focus({ preventScroll: true });
+  }
+}
+
+function choose(k) {
+  const it = state.predict.items[state.predict.i];
+  if (it.pick !== null || !it.options[k]) return;
+  it.pick = it.options[k];
+  persist();
+  updatePredict();
+}
+
+// ---------- results ----------
+function finish(won) {
+  if (state.result) return render();
+  const predictions = won ? state.predict.items.map(predRight) : [];
+  const history = Store.load('history', {});
+  history[state.num] = { won, runsUsed: state.runs.length, correct: predictions.filter(Boolean).length, hard: state.hard, hints: state.hints };
+  Store.save('history', history);
+  const { current } = Fritz.computeStats(history, state.num);
+  if (dayRec) {
+    dayRec = { ...Fritz.timer.stop(dayRec, Date.now()), runs: state.runs.length, hints: state.hints, won };
+    saveTimes();
+  }
+  state.result = { won, runsUsed: state.runs.length, predictions, milestone: won && Fritz.MILESTONES.includes(current) ? current : null,
+    hints: state.hints, ms: dayRec ? dayRec.activeMs : null };
+  state.phase = 'done';
+  persist();
+  render();
+}
+
+const shareTextNow = () => Fritz.shareText({ num: state.num, puzzle: P, hard: state.hard, maxRuns: maxRuns(), ...state.result });
+
+function renderResults() {
+  const r = state.result;
+  const correct = r.predictions.filter(Boolean).length;
+  const tape = state.runs.map(x => `<span class="mk ${x.glitch ? 'hit' : 'pass'}"></span>`).join('') +
+    (r.won ? '<span class="gap"></span>' + r.predictions.map(ok => (ok ? mark('yes', CHECK) : mark('no', CROSS))).join('') : '');
+  const st = stats();
+  // Hints and time, in words, exactly as they appear on the share card. Neither gives the puzzle away.
+  const detail = [r.hints ? `with ${Fritz.hintWord(r.hints)}` : '', r.ms ? `in ${Fritz.fmtDuration(r.ms)}` : ''].filter(Boolean).join(' · ');
+  $('#app').innerHTML = `
+    ${r.milestone ? `<div class="milestone" role="status"><span class="burst" aria-hidden="true">${'<i></i>'.repeat(8)}</span>
+      <b>${r.milestone}</b><span>day streak</span></div>` : ''}
+    ${kicker(`${esc(P.name)}${state.hard ? '<span class="hm">Hard mode</span>' : ''}`)}
+    <h1 class="rank ${r.won ? '' : 'lost'}">${esc(Fritz.rank({ ...r, par: P.par }))}</h1>
+    ${detail ? `<p class="sub">${esc(detail)}</p>` : ''}
+    <div class="stats">
+      <div><b>${r.won ? r.runsUsed : '–'}</b><span>${r.won ? (r.runsUsed === 1 ? 'run to break' : 'runs to break') : 'not broken'}</span></div>
+      <div><b>${P.par}</b><span>par</span></div>
+      <div><b>${r.won ? `${correct}/3` : '–'}</b><span>predicted</span></div>
+    </div>
+    <div class="streak-row">
+      <span><span class="label">Streak</span> <b class="mono">${st.current}</b></span>
+      <span><span class="label">Best</span> <b class="mono">${st.best}</b></span>
+      <button class="link" id="openStats">Statistics</button>
+    </div>
+    <div class="share-row">
+      <div class="tape" aria-hidden="true">${tape}</div>
+      <button class="btn" id="shareBtn">Share result</button>
+    </div>
+    <section class="block prose">
+      <h2 class="label">The glitch</h2>
+      <p>${esc(P.glitchRule)}</p>
+    </section>    <section class="prose">
+      <h2 class="label">In real software</h2>
+      <p class="sub">${esc(P.realWorld)}</p>
+    </section>
+    <div class="next-in" id="nextIn"></div>`;
+  $('#shareBtn').onclick = () => share(shareTextNow());
+  $('#openStats').onclick = openStats;
+  startCountdown();
+}
+
+async function share(text) {
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ text }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  if (await copyText(text)) return toast('Copied');
+  // Clipboard blocked: show the text, selected, so a manual copy is one step away.
+  let ta = $('#shareFallback');
+  if (!ta) {
+    ta = document.createElement('textarea');
+    ta.id = 'shareFallback'; ta.readOnly = true; ta.rows = text.split('\n').length + 1;
+    ta.setAttribute('aria-label', 'Your result, ready to copy');
+    $('.share-row').appendChild(ta);
+  }
+  ta.value = text; ta.focus(); ta.select();
+  toast('Copy the text below to share');
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch { return false; }
+}
+
+let toastTimer;
+function toast(msg) {
+  let el = $('#toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+let countdownTimer;
+function startCountdown() {
+  clearInterval(countdownTimer);
+  const tick = () => {
+    const el = $('#nextIn');
+    if (!el) return clearInterval(countdownTimer);
+    if (!DEV && Fritz.puzzleNumber() !== state.num) {
+      clearInterval(countdownTimer);
+      el.innerHTML = `<span class="label">New machine ready</span><button class="link" onclick="location.reload()">Play</button>`;
+      return;
+    }
+    const s = Math.floor(Fritz.msToMidnight() / 1000);
+    const hms = [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(n => String(n).padStart(2, '0')).join(':');
+    el.innerHTML = `<span class="label">Next machine in</span><span class="mono">${hms}</span>`;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+// ---------- routing + keyboard ----------
+function render() {
+  window.scrollTo(0, 0);
+  clearInterval(countdownTimer);
+  if (mode === 'tutorial') renderTutorial();
+  else if (state.phase === 'predict') renderPredict();
+  else if (state.phase === 'done') renderResults();
+  else renderBreak();
+}
+
+// ---------- tutorial: the Doubler, same for everyone, never saved to stats ----------
+const T = Fritz.TUTORIAL;
+const tut = { step: 'intro', runs: [], item: null, pick: null };
+let mode = !Store.load('onboarded', false) && state.runs.length === 0 && state.phase === 'break' ? 'tutorial' : 'game';
+if (mode === 'tutorial') { tutRec = Fritz.timer.start(tutRec, Date.now()); saveTimes(); } // welcome shown -> tutorial left
+
+function startTutorial() {
+  Object.assign(tut, { step: 'intro', runs: [], item: null, pick: null });
+  if ($('#modal').open) $('#modal').close();
+  mode = 'tutorial';
+  render();
+}
+function endTutorial() {
+  if (tutRec && !tutRec.endedAt) { // first trip only; replays from Help are not timed
+    tutRec = { ...Fritz.timer.stop(tutRec, Date.now()), completed: tut.step === 'done' };
+    saveTimes();
+  }
+  Store.save('onboarded', true);
+  mode = 'game';
+  render();
+}
+const tutBar = label => `<div class="tut-bar"><span class="kicker">${label}</span><button class="link" id="tutSkip">Skip</button></div>`;
+const tutWire = () => { const b = $('#tutSkip'); if (b) b.onclick = endTutorial; };
+const FRITZ_DEF = `<div class="def">
+  <p class="def-head"><b>fritz</b> <span class="mono">/frits/</span></p>
+  <p>As in <em>on the fritz</em>: broken, acting up, not quite working. American slang since the early 1900s.</p>
+</div>`;
+
+function renderTutorial() {
+  ({ intro: tutIntro, break: tutBreak, predict: tutPredict, done: tutDone })[tut.step]();
+  tutWire();
+}
+
+function tutIntro() {
+  $('#app').innerHTML = `
+    <div class="tut-intro">
+      ${FRITZ_DEF}
+      <h1>Every day, one machine is on the fritz.</h1>
+      <p class="lede">You know what it's supposed to do. Find the input it gets wrong, then prove you understand the glitch.</p>
+      <button class="btn wide" id="tutGo">Show me how <span class="btn-note">30 sec</span></button>
+      <button class="link wide-link" id="tutSkip">Skip to today's machine</button>
+    </div>`;
+  $('#tutGo').onclick = () => { tut.step = 'break'; render(); };
+  if (canHover()) $('#tutGo').focus();
+}
+
+function tutCoach() {
+  const passes = tut.runs.filter(r => !r.glitch).length;
+  const g = tut.runs.find(r => r.glitch);
+  if (g) return `That's the glitch. ${g.input.n} doubled is ${g.expected}, but the machine says ${g.output}. In the real game, finding it in fewer runs means a better score.`;
+  if (passes === 0) return 'This machine doubles numbers. Tap <b>Run</b> to test it.';
+  if (passes === 1) return 'Works as expected. You get 8 runs a day. Now find an input it gets <b>wrong</b>.';
+  if (passes === 2) return `Still fine. ${esc(T.hints[0])}`;
+  return `Hint: ${esc(T.hints[1])}`;
+}
+
+function tutBreak() {
+  const last = tut.runs[tut.runs.length - 1];
+  const found = tut.runs.some(r => r.glitch);
+  $('#app').innerHTML = `
+    ${tutBar('Practice · step 1 of 2')}
+    <div class="title-row"><h1>${esc(T.name)}</h1><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${icon(T)}</svg></div>
+    <p class="lede">${esc(T.spec)}</p>
+    <p class="coach" id="coach" role="status">${tutCoach()}</p>
+    <div class="device">
+      <section class="lcd ${found ? 'glitched' : ''}" id="lcd" aria-live="polite" aria-label="Machine display"></section>
+      <form class="controls" id="runForm" novalidate>
+        <div class="fields">
+          <label class="field" for="f-n"><span class="label">Number</span>
+            <input id="f-n" type="text" autocomplete="off" enterkeyhint="go" value="${tut.runs.length ? '' : '4'}" placeholder="any whole number" ${found ? 'disabled' : ''}></label>
+          <button class="btn" type="submit" ${found ? 'disabled' : ''}>Run</button>
+        </div>
+        <p class="msg" id="msg" role="status"></p>
+      </form>
+    </div>
+    <div id="after">${found ? '<button class="btn wide" id="next">Next</button>' : ''}</div>
+    <section class="block">${tut.runs.length ? `<h2 class="label">Log</h2>${logTable(tut.runs, T)}` : ''}</section>`;
+
+  const lcd = $('#lcd');
+  if (!last) lcd.innerHTML = `<span class="tag">READY</span><div class="big glow">&gt;<span class="cursor">_</span></div>`;
+  else if (last.glitch) lcd.innerHTML = `<span class="tag">RUN ${tut.runs.length}</span><div class="alarm glow">GLITCH FOUND</div>
+      <div class="line">&gt; ${last.input.n}</div>
+      <div class="pair"><span class="k">OUTPUT</span><span class="v bad glow">${last.output}</span>
+      <span class="k">EXPECTED</span><span class="v glow">${last.expected}</span></div>`;
+  else lcd.innerHTML = `<span class="tag">RUN ${tut.runs.length}</span><div class="line">&gt; ${last.input.n}</div><div class="big glow">${last.output}</div>`;
+
+  $('#runForm').onsubmit = e => {
+    e.preventDefault();
+    const r = Fritz.parseField(T.inputs[0], $('#f-n').value);
+    const m = $('#msg');
+    if (!r.ok) { m.className = 'msg err'; m.textContent = r.error; return; }
+    if (tut.runs.some(x => x.input.n === r.value)) { m.className = 'msg err'; m.textContent = 'Already ran that one. Try something else.'; return; }
+    const input = { n: r.value }, output = Fritz.out(T, 'buggy', input), expected = Fritz.out(T, 'reference', input);
+    tut.runs.push({ input, output, expected, glitch: output !== expected });
+    tutBreak(); tutWire();
+    if (output !== expected) { playGlitch(); showNext(); }
+    else if (canHover()) $('#f-n').focus();
+  };
+  if (found) $('#next').onclick = () => {
+    const ran = new Set(tut.runs.map(x => x.input.n));
+    tut.item = { n: [-5, -7, -12, -25].find(n => !ran.has(n)) };
+    tut.pick = null; tut.step = 'predict'; render();
+  };
+  else if (canHover()) { const f = $('#f-n'); f.focus(); f.select(); }
+}
+
+function tutPredict() {
+  const machine = Fritz.out(T, 'buggy', tut.item), math = Fritz.out(T, 'reference', tut.item);
+  const options = [math, machine]; // the "right answer" first: the trap this step exists to teach
+  const picked = tut.pick !== null, right = tut.pick === machine;
+  $('#app').innerHTML = `
+    ${tutBar('Practice · step 2 of 2')}
+    <h1>Now predict the glitch.</h1>
+    <p class="sub">What will the machine say?</p>
+    <p class="coach" role="status">${!picked ? 'The machine is still broken. Pick what <b>it</b> will say, not the right answer.'
+      : right ? `Exactly. It drops the minus sign, so it says ${machine}. You get 3 of these after every glitch.`
+      : `${math} is the right answer, but this machine is broken: it says ${machine}. Always predict the machine, not the math.`}</p>
+    <div class="device">
+      <section class="lcd" id="lcd" aria-live="polite" aria-label="Machine display">
+        <span class="tag">PREDICT</span><div class="line">&gt; ${tut.item.n}</div>
+        ${picked ? verdictHTML(machine, tut.pick) : '<div class="big glow">?<span class="cursor">█</span></div>'}
+      </section>
+      <div class="options" role="group" aria-label="Choose the machine's output">${options.map((o, k) => {
+        const cls = !picked ? '' : o === machine ? 'right' : o === tut.pick ? 'wrong' : 'dim';
+        const res = cls === 'right' ? mark('yes res', CHECK) : cls === 'wrong' ? mark('no res', CROSS) : '';
+        return `<button class="opt ${cls}" data-o="${o}" ${picked ? 'disabled' : ''}><span class="key" aria-hidden="true">${k + 1}</span><span class="val">${o}</span>${res}</button>`;
+      }).join('')}</div>
+    </div>
+    <div id="after">${picked ? '<button class="btn wide" id="next">Next</button>' : ''}</div>`;
+  document.querySelectorAll('.opt').forEach(b => (b.onclick = () => tutChoose(b.dataset.o)));
+  if (picked) { $('#next').onclick = () => { tut.step = 'done'; render(); }; $('#next').focus({ preventScroll: true }); }
+}
+function tutChoose(o) {
+  if (tut.pick !== null) return;
+  tut.pick = o;
+  tutPredict(); tutWire();
+}
+
+function tutDone() {
+  const inProgress = state.runs.length > 0 || state.phase !== 'break';
+  $('#app').innerHTML = `
+    <p class="kicker">Practice complete</p>
+    <h1>That's the whole game.</h1>
+    <ol class="rules">
+      <li>Each day, one machine is broken. You know what it's supposed to do.</li>
+      <li>Feed it inputs. Find one it gets wrong, in as few runs as you can.</li>
+      <li>Then predict what it does next, to prove you cracked it.</li>
+    </ol>
+    <div class="today">
+      <span class="label">Today's machine</span>
+      <div class="title-row"><h2>${esc(P.name)}</h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${icon(P)}</svg></div>
+      <p class="kicker">${DAY_NAMES[P.day]} · ${P.difficulty} · par ${P.par}</p>
+    </div>
+    <button class="btn wide" id="tutPlay">${inProgress ? 'Back to today' : "Play today's machine"}</button>`;
+  $('#tutPlay').onclick = endTutorial;
+  if (canHover()) $('#tutPlay').focus();
+}
+
+// ---------- help, theme, dev ----------
+function openHelp() {
+  openModal('How to play', `
+    ${FRITZ_DEF}
+    <ol class="rules">
+      <li>Each day, one machine is broken. You know what it's supposed to do.</li>
+      <li>Feed it inputs. Find one it gets wrong, in as few runs as you can.</li>
+      <li>Then predict what it does next, to prove you cracked it.</li>
+    </ol>
+    <h3 class="label">Scoring</h3>
+    <p class="sub">8 runs a day (4 in hard mode). Each machine has a par. When predicting, pick what the broken machine will say, not the right answer.</p>
+    <p class="sub">Stuck? Tap Hint for a nudge. Hints are free, and each one is more specific than the last. Your result says how many you used.</p>
+    <dl class="ranks">
+      <dt>Clairvoyant</dt><dd>broke it in 1 run</dd>
+      <dt>Glitch hunter</dt><dd>under par</dd>
+      <dt>Debugger</dt><dd>at par</dd>
+      <dt>Persistent</dt><dd>over par</dd>
+    </dl>
+    <h3 class="label">Reading the machine</h3>
+    <dl class="ranks legend-list">
+      <dt><span class="mk pass"></span></dt><dd>worked as expected</dd>
+      <dt><span class="mk hit"></span></dt><dd>the glitch</dd>
+      <dt><span class="mono">·</span></dt><dd>a space, shown so you can see it</dd>
+    </dl>
+    <button class="btn wide" id="replayTut">Replay the tutorial</button>`);
+  $('#replayTut').onclick = startTutorial;
+}
+
+function applyTheme() {
+  const root = document.documentElement;
+  if (settings.theme === 'auto') delete root.dataset.theme; else root.dataset.theme = settings.theme;
+}
+applyTheme();
+
+// Play times from both storage namespaces: playtesters play without ?dev=1, so their times live in the real one.
+function timeSets() {
+  pauseTimers(); resumeTimers(); // flush the running clocks to storage first
+  const set = ns => ({ tutorial: Store.peek(ns, 'tutorialTime', null), days: Store.peek(ns, 'times', {}) });
+  return Fritz.exportTimes({ real: set('fritz:v1:'), dev: set('fritz-dev:v1:') }, Date.now());
+}
+function timesHTML() {
+  const data = timeSets();
+  const row = (label, t, extra = '') => `<tr><td>${esc(label)}<span class="x">${esc(extra)}</span></td>
+    <td class="o">${Fritz.fmtDuration(t.activeMs)}${t.finished ? '' : '…'}</td></tr>`;
+  const block = (title, s) => `<h3 class="label">${title}</h3>${s.tutorial || s.days.length ? `<table class="tbl dev-tbl"><tbody>
+      ${s.tutorial ? row('Tutorial', s.tutorial, !s.tutorial.finished ? 'open' : s.tutorial.completed ? 'finished' : 'skipped') : ''}
+      ${s.days.map(d => row(`#${d.num} ${d.machine || ''}`, d, d.finished
+        ? `${d.won ? 'won' : 'lost'} · ${d.runs} runs · ${d.hints} hints${d.hard ? ' · hard' : ''}` : 'in progress')).join('')}
+    </tbody></table>` : '<p class="sub">Nothing recorded yet.</p>'}`;
+  return `${block('Play times · real play', data.real)}${block('Play times · dev play', data.dev)}
+    <p class="note">Active time, first run to result (tab hidden = paused). The export also has wall-clock time. … = still running.</p>
+    <div class="dev-btns">
+      <button class="btn" id="devTimesDownload">Download JSON</button>
+      <button class="btn" id="devTimesCopy">Copy JSON</button>
+    </div>`;
+}
+
+function openDev() {
+  const weeks = Math.max(1, ...Fritz.DAYS.map(d => Fritz.PUZZLES.filter(p => p.day === d).length));
+  const results = Array.from({ length: weeks * 7 }, (_, i) => i + 1).map(n => { const p = Fritz.puzzleFor(n);
+    return `<option value="${n}" ${n === state.num ? 'selected' : ''}>#${n} · ${p.day} · ${esc(p.name)}</option>`; }).join('');
+  openModal('Dev', `
+    <label class="setting" for="devDay"><span><b>Play day</b><span class="sub">Saved separately from real progress.</span></span>
+      <select id="devDay" class="select">${state.num > weeks * 7 ? `<option selected>#${state.num} · ${esc(P.name)}</option>` : ''}${results}</select></label>
+    <div class="dev-btns">
+      <button class="btn" id="devResetToday">Reset today</button>
+      <button class="btn" id="devResetAll">Reset all</button>
+      <button class="btn" id="devValidate">Run validator</button>
+    </div>
+    <div id="devOut"></div>
+    ${timesHTML()}`);
+  $('#devDay').onchange = e => { location.search = `?dev=1&day=${e.target.value}`; };
+  const json = () => JSON.stringify(timeSets(), null, 2);
+  $('#devTimesCopy').onclick = async () => toast((await copyText(json())) ? 'Copied' : 'Copy failed');
+  $('#devTimesDownload').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json()], { type: 'application/json' }));
+    a.download = `fritz-times-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('#devResetToday').onclick = () => {
+    Store.remove(`day:${state.num}`);
+    const h = Store.load('history', {}); delete h[state.num]; Store.save('history', h);
+    dayRec = null; saveTimes(); timersOff = true;
+    location.reload();
+  };
+  $('#devResetAll').onclick = () => { timersOff = true; Store.clearAll(); location.reload(); };
+  $('#devValidate').onclick = () => {
+    $('#devOut').innerHTML = '<p class="sub">Running…</p>';
+    setTimeout(() => {
+      $('#devOut').innerHTML = `<table class="tbl dev-tbl"><tbody>${Fritz.validate().map(r => `<tr>
+        <td>${esc(r.name)}</td><td class="o">${(r.rate * 100).toFixed(1)}%</td>
+        <td class="${r.pass ? 'ok' : 'bad'}">${r.pass ? 'PASS' : 'FAIL'}</td></tr>
+        ${r.errors.map(e => `<tr><td colspan="3" class="bad small">${esc(e)}</td></tr>`).join('')}`).join('')}</tbody></table>`;
+    }, 20);
+  };
+}
+
+// ---------- modals ----------
+function openModal(title, body) {
+  const d = $('#modal');
+  d.innerHTML = `<div class="modal-head"><h2 class="label" id="modalTitle">${esc(title)}</h2>
+    <button class="icon-btn" id="modalClose" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-body">${body}</div>`;
+  $('#modalClose').onclick = () => d.close();
+  if (!d.open) d.showModal();
+}
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.close(); });
+
+function openStats() {
+  const st = stats();
+  const today = Store.load('history', {})[state.num];
+  const rows = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({ k: String(n), v: st.hist[n], cur: today?.won && today.runsUsed === n }))
+    .concat({ k: '✕', v: st.losses, cur: today && !today.won, loss: true });
+  const max = Math.max(1, ...rows.map(r => r.v));
+  openModal('Statistics', st.played ? `
+    <div class="kpis">
+      <div><b>${st.played}</b><span>Played</span></div>
+      <div><b>${st.winPct}</b><span>Win %</span></div>
+      <div><b>${st.current}</b><span>Current streak</span></div>
+      <div><b>${st.best}</b><span>Best streak</span></div>
+    </div>
+    <h3 class="label">Runs to break it</h3>
+    <div class="histo">${rows.map(r => `
+      <div class="hrow ${r.cur ? 'cur' : ''} ${r.loss ? 'loss' : ''}">
+        <span class="hk" ${r.loss ? 'aria-label="Not broken"' : ''}>${r.k}</span>
+        <span class="htrack"><span class="hbar" style="width:${Math.max(r.v ? 8 : 0, (r.v / max) * 100)}%"></span></span>
+        <span class="hv">${r.v}</span>
+      </div>`).join('')}
+    </div>
+    <p class="avg"><span class="label">Avg. predictions</span>
+      <b class="mono">${st.avgCorrect === null ? '–' : st.avgCorrect.toFixed(1)}</b><span class="muted"> / 3</span></p>`
+    : `<p class="sub">Finish today's machine to start your stats.</p>`);
+}
+
+function openSettings() {
+  const locked = state.runs.length > 0 || state.phase !== 'break';
+  openModal('Settings', `
+    <label class="setting" for="hardToggle">
+      <span><b>Hard mode</b><span class="sub">4 runs instead of 8. Shared results say hard mode.</span></span>
+      <input type="checkbox" role="switch" class="switch" id="hardToggle" ${settings.hard ? 'checked' : ''}>
+    </label>
+    ${locked ? `<p class="note">Today's machine is already ${state.hard ? 'in' : 'out of'} hard mode. Changes apply from tomorrow, since hard mode can only be switched before your first run.</p>` : ''}
+    <div class="setting">
+      <span><b>Theme</b></span>
+      <div class="seg" role="radiogroup" aria-label="Theme">${['auto', 'light', 'dark'].map(t =>
+        `<button role="radio" aria-checked="${settings.theme === t}" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
+    </div>`);
+  document.querySelectorAll('.seg button').forEach(b => (b.onclick = () => {
+    settings.theme = b.dataset.t;
+    Store.save('settings', settings);
+    applyTheme();
+    document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-checked', x === b));
+  }));
+  $('#hardToggle').onchange = e => {
+    settings.hard = e.target.checked;
+    Store.save('settings', settings);
+    if (!locked) { state.hard = settings.hard; persist(); render(); }
+  };
+}
+
+$('#topActions').innerHTML = `
+  <button class="icon-btn" id="helpBtn" aria-label="How to play"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></svg></button>
+  <button class="icon-btn" id="statsBtn" aria-label="Statistics"><svg class="i" viewBox="0 0 24 24"><path d="M5 20v-8M12 20V4M19 20v-5"/></svg></button>
+  <button class="icon-btn" id="settingsBtn" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>`;
+$('#statsBtn').onclick = openStats;
+$('#settingsBtn').onclick = openSettings;
+$('#helpBtn').onclick = openHelp;
+$('#wordmark').onclick = openHelp;
+if (DEV) {
+  $('#topActions').insertAdjacentHTML('beforeend', '<button class="icon-btn dev-btn" id="devBtn" aria-label="Dev tools">DEV</button>');
+  $('#devBtn').onclick = openDev;
+}
+
+// A tab left open overnight picks up the new machine when it comes back into view.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !params.get('day') && Fritz.puzzleNumber() !== state.num) location.reload();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || $('#modal').open) return;
+  if (!/^[1-4]$/.test(e.key)) return;
+  if (mode === 'tutorial' && tut.step === 'predict') { const b = document.querySelectorAll('.opt')[+e.key - 1]; if (b) tutChoose(b.dataset.o); }
+  else if (mode === 'game' && state.phase === 'predict') choose(+e.key - 1);
+  else return;
+  e.preventDefault();
+});
+
+render();
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
